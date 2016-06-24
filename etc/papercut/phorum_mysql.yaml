@@ -1,0 +1,27 @@
+# This is the papercut default configuration as found in settings.py. It will
+# require a fair amount of effort to create the environment this configuration
+# expects (don't bother unless you'd like to add a NNTP gateway to a Phorum
+# installation).
+PHP_CRYPT_SALT_LENGTH: 2
+auth_backend: ''
+dbhost: localhost
+dbname: phorum
+dbpass: anonymous
+dbuser: anonymous
+forward_host: news.remotedomain.com
+log_file: $HOME/.papercut/logs/papercut.log
+max_connections: 20
+mbox_path: $HOME/.papercut/mboxes/
+merge: merge_dicts_and_lists
+nntp_auth: 'no'
+nntp_cache: 'no'
+nntp_cache_expire: 10800
+nntp_cache_path: $HOME/.papercut/cache/
+nntp_hostname: nntp.example.com
+nntp_port: 119
+nuke_table_prefix: nuke_
+phorum_settings_path: /home/papercut/www/domain.com/phorum_settings/
+phorum_version: 3.3.2a
+phpbb_table_prefix: phpbb_
+server_type: read-write
+storage_backend: phorum_mysql
