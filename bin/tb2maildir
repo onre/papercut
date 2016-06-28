@@ -1,0 +1,76 @@
+#!/bin/sh
+
+# tb2maildir - converts a thundebird mail account's local storage to a maildir
+#             
+# This is useful for users who have a large amount of emails in Thunderbird and
+# want to convert these to maildir format (for archiving or for use by maildir
+# based IMAP clients such as offlineimap). Converting Thunderbird's locally
+# stored emails in this manner conserves a lot of bandwidth.
+#
+# Requires mb2md.pl version 3.20:
+#
+#   http://batleth.sapienti-sat.org/projects/mb2md/mb2md-3.20.pl.gz
+#
+# usage:
+#
+# source=~/.thunderbird/*.default/ImapMail/mail.example.com dest=~/maildir/example.com tb2maildir
+
+if [ -z "$dest" ]; then
+  echo "No 'dest' environment variable found, aborting." 1>&2
+  exit 1
+fi
+
+if [ -z "$source" ]; then
+  echo "No 'source' environment variable found, aborting." 1>&2
+  exit 1
+fi
+
+tmpdir=$(mktemp -d)
+
+cp -a $source/* $tmpdir
+mkdir -p $dest
+
+find $tmpdir -name '*.msf' | xargs rm
+
+# Rename mboxes with Thunderbird's weird '-1' suffix
+for file in $(find $tmpdir -name '*-1')
+  do
+  mv $file $(echo $file | sed 's/-1$//')
+  done
+
+# Save inbox to a temporary file (all other folders need to be in INBOX/ to get
+# the correct prefix so we need to move it out of the way)
+mv "$tmpdir/INBOX" "$tmpdir/INBOX_real"
+
+for dir in $(find $tmpdir -type d -name '*.sbd' | sort -r)
+  do
+  mv $dir $(echo $dir | sed s/\.sbd$//)
+  done
+
+mv $tmpdir/INBOX.sbd* $tmpdir/INBOX
+rmdir $tmpdir/INBOX.sbd
+
+mb2md-3.20.pl -s $tmpdir -R -d $dest
+mv $dest/.INBOX_real $dest/.INBOX
+
+# No top level maildir (that's INBOX)
+rm -rf $dest/{cur,new,tmp}
+
+# Remove leading path component (leaving it trips up offlineimap when comparing
+# local and remote folders)
+for i in $dest/.*
+  do
+  case $i in
+    "$dest/..")
+      continue
+      ;;
+    "$dest/.")
+      continue
+      ;;
+    *)
+      ;;
+  esac
+  mv "$i" "$(echo "$i" | perl -lpe "s#($dest/)\.(.*)#\$1\$2#")"
+  done
+
+rm -rf $tmpdir
