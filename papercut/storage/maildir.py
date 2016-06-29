@@ -192,10 +192,14 @@ class HeaderCache:
 
       }
 
-      # Make sure no headers are None
+      # Make sure no headers are None and remove embedded newlines
       for header in metadata['headers']:
-        if metadata['headers'][header] is None:
-          metadata['headers'][header] = ''
+        h = metadata['headers']
+        if h[header] is None:
+          h[header] = ''
+        else:
+          h[header] = h[header].replace('\n', '')
+        metadata['headers'] = h
 
       print("DEBUG: %s" % metadata)
       return metadata
