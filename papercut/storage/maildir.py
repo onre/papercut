@@ -64,10 +64,9 @@ class HeaderCache:
   def __init__(self, storage, is_active):
     self.storage = storage
     self.path = storage.maildir_dir
-    self.caches = {}
-    self.articleindex = {} # Article indexes for each group
-    self.fileindex = {}    # File indexes for each group
+    self.cache = {}
     self.midindex = {}     # Global message ID index
+    self.groupindex = {}   # Per group file name index
 
     # Only attempt to read/create caches if caching is enabled
     if is_active:
@@ -98,10 +97,22 @@ class HeaderCache:
     new_to_cur(groupdir)
     curdir = os.path.join(groupdir, 'cur')
 
-    self.caches[group] = {}
+    self.groupindex[group] = {}
 
     for message in dircache.listdir(curdir):
       filename = os.path.join(curdir, message)
+      ret = self.read_message(filename)
+
+      self.cache[filename] = ret
+      mid = ret['headers']['message-id']
+
+      # Add pointers to message data structure
+      self.midindex[mid] = filename
+      self.groupindex[group][os.path.basename(filename)] = filename
+
+
+  def read_message(self, filename):
+      '''Reads an RFC822 message and creates a data structure containing selected metadata'''
       f = open(filename)
       lines = len(f.read().split('\n'))
       f.seek(0)
@@ -136,9 +147,7 @@ class HeaderCache:
         # Remove angle braces and white space from message ID
         mid = mid.strip('<> ')
 
-
-
-      self.caches[group][filename] = {
+      return {
         'filename': filename,
         'timestamp': time.time(),
         'lines': lines,
@@ -150,6 +159,7 @@ class HeaderCache:
          }
 
       }
+
 
   def read_cache(self, group):
     '''Reads cache for a group from disk and populates in-memory data structures'''
