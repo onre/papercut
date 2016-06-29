@@ -24,6 +24,7 @@ import rfc822
 import socket
 import string
 import time
+import StringIO
 
 import papercut.storage.strutil as strutil
 import papercut.settings
@@ -60,8 +61,9 @@ class HeaderCache:
   file name, message ID and article number.
   '''
 
-  def __init__(self, path, is_active):
-    self.path = path
+  def __init__(self, storage, is_active):
+    self.storage = storage
+    self.path = storage.maildir_dir
     self.caches = {}
     self.articleindex = {} # Article indexes for each group
     self.fileindex = {}    # File indexes for each group
@@ -69,25 +71,22 @@ class HeaderCache:
 
     # Only attempt to read/create caches if caching is enabled
     if is_active:
-      for group in dircache.listdir(path):
-        try:
-          self.read_cache(group)
-        except IOError as e:
-          self.create_cache(group)
+      for group in dircache.listdir(self.path):
+        self.create_cache(group)
 
-  def message_byname(self, storage, filename):
+  def message_byname(self, filename):
     '''
     Retrieve an article by file name. Falls back to storage's regular retrieval
     methods if cache is disabled/unavailable.
     '''
 
-  def message_byid(self, storage, group, articleid):
+  def message_byid(self, group, articleid):
     '''
     Retrieve an article by article ID in its group. Falls back to storage's
     regular retrieval methods if cache is disabled/unavailable.
     '''
 
-  def message_bymid(self, storage, message_id):
+  def message_bymid(self, message_id):
     '''
     Retrieve an article by message ID. Falls back to storage's regular
     retrieval methods if cache is disabled/unavailable.
@@ -95,13 +94,47 @@ class HeaderCache:
 
   def create_cache(self, group):
     '''Create an entirely new cache for a group (in memory and on disk)'''
+    groupdir = os.path.join(self.path, group)
+    new_to_cur(groupdir)
+    curdir = os.path.join(groupdir, 'cur')
+
+    self.caches[group] = {}
+
+    for message in dircache.listdir(curdir):
+      filename = os.path.join(curdir, message)
+      f = open(filename)
+      lines = len(f.read().split('\n'))
+      f.seek(0)
+      m = rfc822.Message(f)
+
+      # Create in-memory data structure with readline() support to minimize I/O
+      headers = StringIO.StringIO(''.join(m.headers))
+      m = rfc822.Message(headers)
+
+      f.close()
+
+      self.caches[group][filename] = {
+        'filename': filename,
+        'timestamp': time.time(),
+        'lines': lines,
+        'headers': {
+           'date': m.getheader('date'),
+           'from': m.getheader('from'),
+           'message-id': m.getheader('message-id'),
+           'subject': m.getheader('subject'),
+         }
+
+      }
+      print self.caches[group][filename]
 
   def read_cache(self, group):
-    '''Reads cache for a group and populates in-memory data structures'''
+    '''Reads cache for a group from disk and populates in-memory data structures'''
+    # TODO: Implement this if it turns out to be neccessary at some stage.
     open(os.path.join(self.path, group))
 
   def write_cache(group):
     '''Write in-memory cache for a group to disk'''
+    # TODO: Implement this if it turns out to be neccessary at some stage.
 
 
 class Papercut_Storage:
@@ -113,7 +146,7 @@ class Papercut_Storage:
     def __init__(self, group_prefix="papercut.maildir.", header_cache=True):
         self.maildir_dir = settings.maildir_path
         self.group_prefix = group_prefix
-        self.cache = HeaderCache(settings.maildir_path, header_cache)
+        self.cache = HeaderCache(self, header_cache)
 
 
     def _get_group_dir(self, group):
