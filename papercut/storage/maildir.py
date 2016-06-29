@@ -201,7 +201,6 @@ class HeaderCache:
           h[header] = h[header].replace('\n', '')
         metadata['headers'] = h
 
-      print("DEBUG: %s" % metadata)
       return metadata
 
 
