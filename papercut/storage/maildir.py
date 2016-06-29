@@ -197,6 +197,7 @@ class HeaderCache:
         if metadata['headers'][header] is None:
           metadata['headers'][header] = ''
 
+      print("DEBUG: %s" % metadata)
       return metadata
 
 
@@ -425,13 +426,14 @@ class Papercut_Storage:
             line_count = msg['lines']
             xref = 'Xref: %s %s:%d' % (settings.nntp_hostname, group_name, id)
             
+            subject = msg['headers']['subject']
             reference = msg['headers']['references']
             msg_bytes = msg['bytes']
             # message_number <tab> subject <tab> author <tab> date <tab>
             # message_id <tab> reference <tab> bytes <tab> lines <tab> xref
             
             overviews.append("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % \
-                             (id, msg.get('subject'), author,
+                             (id, subject, author,
                               formatted_time, message_id, reference,
                               msg_bytes,
                               line_count, xref))
