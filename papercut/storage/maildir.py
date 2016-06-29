@@ -47,6 +47,62 @@ def maildir_date_cmp(a, b):
     return cmp(int(a), int(b))
 
 
+def new_to_cur(groupdir):
+    for f in dircache.listdir(os.path.join(groupdir, 'new')):
+        ofp = os.path.join(groupdir, 'new', f)
+        nfp = os.path.join(groupdir, 'cur', f + ":2,")
+        os.rename(ofp, nfp)
+
+
+class MessageMeta:
+  '''
+  Data structure for storing the message headers returned by the XOVER command
+  and other metadata.
+  '''
+  def __init__(self, headers, filename, articleid):
+    self.headers = headers
+    self.message_id = headers['Message-ID']
+    self.articleid = articleid
+    self.filename = filename
+
+class HeaderCache:
+  '''
+  Caches the message headers returned by the XOVER command and indexes them by
+  file name, message ID and article number.
+  '''
+
+  def __init__(self, path):
+    self.path = path
+    self.caches = {}
+    self.articleindex = {} # Article indexes for each group
+    self.fileindex = {}    # File indexes for each group
+    self.midindex = {}     # Global message ID index
+
+    for group in dircache.listdir(path):
+      try:
+        self.read_cache(group)
+      except IOError as e:
+        self.create_cache(group)
+
+  def message_byname(self, filename):
+    '''Retrieve a message by file name'''
+
+  def message_byid(self, group, articleid):
+    '''Retrieve a message by article ID in its group'''
+
+  def message_bymid(self, message_id):
+    '''Retrieve a message by message ID'''
+
+  def create_cache(self, group):
+    '''Create an entirely new cache for a group (in memory and on disk)'''
+
+  def read_cache(self, group):
+    '''Reads cache for a group and populates in-memory data structures'''
+    open(os.path.join(self.path, group))
+
+  def write_cache(group):
+    '''Write in-memory cache for a group to disk'''
+
 
 class Papercut_Storage:
     """
@@ -54,9 +110,13 @@ class Papercut_Storage:
     """
     _proc_post_count = 0
 
-    def __init__(self, group_prefix="papercut.maildir."):
+    def __init__(self, group_prefix="papercut.maildir.", header_cache=True):
         self.maildir_dir = settings.maildir_path
         self.group_prefix = group_prefix
+        if header_cache:
+          self.cache = HeaderCache(settings.maildir_path)
+        else:
+          self.cache = None
 
 
     def _get_group_dir(self, group):
@@ -72,12 +132,7 @@ class Papercut_Storage:
 
 
     def _new_to_cur(self, group):
-        groupdir = self._get_group_dir(group)
-        for f in dircache.listdir(os.path.join(groupdir, 'new')):
-            ofp = os.path.join(groupdir, 'new', f)
-            nfp = os.path.join(groupdir, 'cur', f + ":2,")
-            os.rename(ofp, nfp)
-
+        new_to_cur(self._get_group_dir(group))
 
     def get_groupname_list(self):
         groups = dircache.listdir(self.maildir_dir)
