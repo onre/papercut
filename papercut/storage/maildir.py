@@ -24,6 +24,9 @@ import rfc822
 import socket
 import string
 import time
+import StringIO
+
+from stat import ST_MTIME
 
 import papercut.storage.strutil as strutil
 import papercut.settings
@@ -47,6 +50,172 @@ def maildir_date_cmp(a, b):
     return cmp(int(a), int(b))
 
 
+def new_to_cur(groupdir):
+    for f in dircache.listdir(os.path.join(groupdir, 'new')):
+        ofp = os.path.join(groupdir, 'new', f)
+        nfp = os.path.join(groupdir, 'cur', f + ":2,")
+        os.rename(ofp, nfp)
+
+
+class HeaderCache:
+  '''
+  Caches the message headers returned by the XOVER command and indexes them by
+  file name, message ID and article number.
+  '''
+
+  def __init__(self, path):
+    self.path = path
+    self.cache = {}        # Message cache
+    self.dircache = {}     # Group directory caches
+    self.midindex = {}     # Global message ID index
+
+    # Only attempt to read/create caches if caching is enabled
+    for group in dircache.listdir(self.path):
+      self.create_cache(group)
+
+  def _idtofile(self, group, articleid):
+    '''Converts an group/article ID to a file name'''
+    articledir = os.path.join(self.path, group, 'cur')
+    articles = self.dircache[group]
+    return os.path.join(self.path, articledir, articles[articleid-1])
+
+  def message_byid(self, group, articleid):
+    '''
+    Retrieve an article by article ID in its group or None if the article ID is
+    not valid.
+    '''
+
+    filename = self._idtofile(group, articleid)
+
+    try:
+      return self.cache[filename]
+    except IndexError:
+      return None
+
+
+  def message_bymid(self, message_id):
+    '''
+    Return the file name corresponding to a message ID or None if the message
+    ID is unknown.
+    '''
+
+  def create_cache(self, group):
+    '''Create an entirely new cache for a group (in memory and on disk)'''
+    groupdir = os.path.join(self.path, group)
+    new_to_cur(groupdir)
+    curdir = os.path.join(groupdir, 'cur')
+
+    self.refresh_dircache(group)
+
+    for message in self.dircache[group]:
+      filename = os.path.join(curdir, message)
+      ret = self.read_message(filename)
+
+      self.cache[filename] = ret
+      mid = ret['headers']['message-id']
+
+      # Add pointers to message data structure
+      self.midindex[mid] = filename
+
+
+  def refresh_dircache(self, group):
+    '''
+    Refresh internal directory cache for a group. We need to keep this cache
+    since the dircache one performs a stat() on the directory for each
+    invocation which makes it disastrously slow in a place like message_byid()
+    that may be called thousands of times when processing a XOVER.
+    '''
+    groupdir = os.path.join(self.path, group)
+    new_to_cur(groupdir)
+    curdir = os.path.join(groupdir, 'cur')
+
+    if not self.dircache.has_key(group):
+      self.dircache[group] = {}
+    self.dircache[group] = dircache.listdir(curdir)
+    self.dircache[group].sort(maildir_date_cmp)
+
+
+  def read_message(self, filename):
+      '''Reads an RFC822 message and creates a data structure containing selected metadata'''
+      f = open(filename)
+
+      # Count lines and bytes
+      l = f.read().split('\n')
+      lines = len(l)
+      message_bytes = 0
+      for line in l:
+        message_bytes += len(line)
+      message_bytes += lines # newlines are bytes, too
+
+      f.seek(0)
+
+      m = rfc822.Message(f)
+
+      # Create in-memory data structure with readline() support to minimize I/O
+      headers = StringIO.StringIO(''.join(m.headers))
+      m = rfc822.Message(headers)
+
+      f.close()
+
+      mid = m.getheader('message-id')
+
+      # Sometimes messages may not have a Message-ID: header. Technically this
+      # should not happen. If it is missing anyway, generate a message ID from
+      # the file name for messages that lack one.
+      if mid is None:
+        basename = os.path.basename(filename)
+        try:
+          hostname = basename.split('.')[2].split(',')[0]
+        except IndexError:
+          hostname = papercut
+
+        # strip host name from filename
+        basename = basename.replace(hostname, '')
+
+        # Remove all nonalphanumeric characters
+        basename = strutil.filterchars(basename, string.letters + string.digits)
+
+        mid = basename + '@' + hostname
+      else:
+        # Remove angle braces and white space from message ID
+        mid = mid.strip('<> ')
+
+      metadata = {
+        'filename': filename,
+        'timestamp': time.time(),
+        'lines': lines,
+        'bytes': message_bytes,
+        'headers': {
+           'date': m.getheader('date'),
+           'from': m.getheader('from'),
+           'message-id': mid,
+           'subject': m.getheader('subject'),
+           'references': m.getheader('references'),
+         }
+
+      }
+
+      # Make sure no headers are None and remove embedded newlines
+      for header in metadata['headers']:
+        h = metadata['headers']
+        if h[header] is None:
+          h[header] = ''
+        else:
+          h[header] = h[header].replace('\n', '')
+        metadata['headers'] = h
+
+      return metadata
+
+
+  def read_cache(self, group):
+    '''Reads cache for a group from disk and populates in-memory data structures'''
+    # TODO: Implement this if it turns out to be neccessary at some stage.
+    open(os.path.join(self.path, group))
+
+  def write_cache(group):
+    '''Write in-memory cache for a group to disk'''
+    # TODO: Implement this if it turns out to be neccessary at some stage.
+
 
 class Papercut_Storage:
     """
@@ -57,6 +226,7 @@ class Papercut_Storage:
     def __init__(self, group_prefix="papercut.maildir."):
         self.maildir_dir = settings.maildir_path
         self.group_prefix = group_prefix
+        self.cache = HeaderCache(self.maildir_dir)
 
 
     def _get_group_dir(self, group):
@@ -72,12 +242,7 @@ class Papercut_Storage:
 
 
     def _new_to_cur(self, group):
-        groupdir = self._get_group_dir(group)
-        for f in dircache.listdir(os.path.join(groupdir, 'new')):
-            ofp = os.path.join(groupdir, 'new', f)
-            nfp = os.path.join(groupdir, 'cur', f + ":2,")
-            os.rename(ofp, nfp)
-
+        new_to_cur(self._get_group_dir(group))
 
     def get_groupname_list(self):
         groups = dircache.listdir(self.maildir_dir)
@@ -255,29 +420,32 @@ class Papercut_Storage:
             end_id = int(end_id)
             
         overviews = []
+
+        # Refresh directory cache to get a reasonably current view
+        self.cache.refresh_dircache(self._groupname2group(group_name))
+
         for id in range(start_id, end_id + 1):
-            msg = self.get_message(group_name, id)
+            msg = self.cache.message_byid(self._groupname2group(group_name), id)
             
             if msg is None:
                 break
             
-            author = msg.get('from')
-            formatted_time = msg.get('date')
-            message_id = self.get_message_id(id, group_name)
-            line_count = len(msg.fp.read().split('\n'))
+            author = msg['headers']['from']
+            formatted_time = msg['headers']['date']
+            message_id = "<%s>" % msg['headers']['message-id']
+            line_count = msg['lines']
             xref = 'Xref: %s %s:%d' % (settings.nntp_hostname, group_name, id)
             
-            if msg.get('references') is not None:
-                reference = msg.get('references')
-            else:
-                reference = ""
+            subject = msg['headers']['subject']
+            reference = msg['headers']['references']
+            msg_bytes = msg['bytes']
             # message_number <tab> subject <tab> author <tab> date <tab>
             # message_id <tab> reference <tab> bytes <tab> lines <tab> xref
             
             overviews.append("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % \
-                             (id, msg.get('subject'), author,
+                             (id, subject, author,
                               formatted_time, message_id, reference,
-                              len(strutil.format_body(msg.fp.read())),
+                              msg_bytes,
                               line_count, xref))
             
         return "\r\n".join(overviews)
