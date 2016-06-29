@@ -113,6 +113,31 @@ class HeaderCache:
 
       f.close()
 
+      mid = m.getheader('message-id')
+
+      # Sometimes messages may not have a Message-ID: header. Technically this
+      # should not happen. If it is missing anyway, generate a message ID from
+      # the file name for messages that lack one.
+      if mid is None:
+        basename = os.path.basename(filename)
+        try:
+          hostname = basename.split('.')[2].split(',')[0]
+        except IndexError:
+          hostname = papercut
+
+        # strip host name from filename
+        basename = basename.replace(hostname, '')
+
+        # Remove all nonalphanumeric characters
+        basename = strutil.filterchars(basename, string.letters + string.digits)
+
+        mid = basename + '@' + hostname
+      else:
+        # Remove angle braces and white space from message ID
+        mid = mid.strip('<> ')
+
+
+
       self.caches[group][filename] = {
         'filename': filename,
         'timestamp': time.time(),
@@ -120,12 +145,11 @@ class HeaderCache:
         'headers': {
            'date': m.getheader('date'),
            'from': m.getheader('from'),
-           'message-id': m.getheader('message-id'),
+           'message-id': mid,
            'subject': m.getheader('subject'),
          }
 
       }
-      print self.caches[group][filename]
 
   def read_cache(self, group):
     '''Reads cache for a group from disk and populates in-memory data structures'''
