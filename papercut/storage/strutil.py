@@ -66,30 +66,3 @@ def filterchars(text, characters):
             res += char
 
     return res
-
-
-class ReadlineWrapper:
-  '''
-  Provides a readline() method for a string (This allows rfc822.Message to
-  be used on plain strings)
-  '''
-
-  def __init__(self, text):
-    if isinstance(text, list):
-      self.lines = text
-    elif isinstance(text, str):
-      self.lines = text.split("\n")
-    else:
-      raise TypeError('text must be string or a list of lines')
-    self.i = 0
-
-  def readline(self, size=-1):
-    if ( self.i < len(self.lines) ):
-      if ( size > 0 ):
-        ret = self.lines[self.i]
-      else:
-        ret = self.lines[self.i][:size-1]
-    else:
-      ret = ''
-    self.i += 1
-    return ret
