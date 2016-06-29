@@ -54,44 +54,44 @@ def new_to_cur(groupdir):
         os.rename(ofp, nfp)
 
 
-class MessageMeta:
-  '''
-  Data structure for storing the message headers returned by the XOVER command
-  and other metadata.
-  '''
-  def __init__(self, headers, filename, articleid):
-    self.headers = headers
-    self.message_id = headers['Message-ID']
-    self.articleid = articleid
-    self.filename = filename
-
 class HeaderCache:
   '''
   Caches the message headers returned by the XOVER command and indexes them by
   file name, message ID and article number.
   '''
 
-  def __init__(self, path):
+  def __init__(self, path, is_active):
     self.path = path
     self.caches = {}
     self.articleindex = {} # Article indexes for each group
     self.fileindex = {}    # File indexes for each group
     self.midindex = {}     # Global message ID index
 
-    for group in dircache.listdir(path):
-      try:
-        self.read_cache(group)
-      except IOError as e:
-        self.create_cache(group)
+    # Only attempt to read/create caches if caching is enabled
+    if is_active:
+      for group in dircache.listdir(path):
+        try:
+          self.read_cache(group)
+        except IOError as e:
+          self.create_cache(group)
 
-  def message_byname(self, filename):
-    '''Retrieve a message by file name'''
+  def message_byname(self, storage, filename):
+    '''
+    Retrieve an article by file name. Falls back to storage's regular retrieval
+    methods if cache is disabled/unavailable.
+    '''
 
-  def message_byid(self, group, articleid):
-    '''Retrieve a message by article ID in its group'''
+  def message_byid(self, storage, group, articleid):
+    '''
+    Retrieve an article by article ID in its group. Falls back to storage's
+    regular retrieval methods if cache is disabled/unavailable.
+    '''
 
-  def message_bymid(self, message_id):
-    '''Retrieve a message by message ID'''
+  def message_bymid(self, storage, message_id):
+    '''
+    Retrieve an article by message ID. Falls back to storage's regular
+    retrieval methods if cache is disabled/unavailable.
+    '''
 
   def create_cache(self, group):
     '''Create an entirely new cache for a group (in memory and on disk)'''
@@ -113,10 +113,7 @@ class Papercut_Storage:
     def __init__(self, group_prefix="papercut.maildir.", header_cache=True):
         self.maildir_dir = settings.maildir_path
         self.group_prefix = group_prefix
-        if header_cache:
-          self.cache = HeaderCache(settings.maildir_path)
-        else:
-          self.cache = None
+        self.cache = HeaderCache(settings.maildir_path, header_cache)
 
 
     def _get_group_dir(self, group):
