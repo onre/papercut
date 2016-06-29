@@ -26,6 +26,8 @@ import string
 import time
 import StringIO
 
+from stat import ST_MTIME
+
 import papercut.storage.strutil as strutil
 import papercut.settings
 
@@ -67,28 +69,48 @@ class HeaderCache:
     self.cache = {}
     self.midindex = {}     # Global message ID index
     self.groupindex = {}   # Per group file name index
+    self.is_active = is_active
 
     # Only attempt to read/create caches if caching is enabled
     if is_active:
       for group in dircache.listdir(self.path):
         self.create_cache(group)
 
+  def _idtofile(self, group, articleid):
+    '''Converts an group/article ID to a file name'''
+    articledir = os.path.join(self.path, group, 'cur')
+    articles = dircache.listdir(articledir)
+    articles.sort(maildir_date_cmp)
+    return os.path.join(self.path, articledir, articles[articleid-1])
+
   def message_byname(self, filename):
     '''
-    Retrieve an article by file name. Falls back to storage's regular retrieval
-    methods if cache is disabled/unavailable.
+    Retrieve an article's metadata by file name. Falls back to storage
+    instance's regular retrieval method if cache is disabled/unavailable.
     '''
 
   def message_byid(self, group, articleid):
     '''
-    Retrieve an article by article ID in its group. Falls back to storage's
-    regular retrieval methods if cache is disabled/unavailable.
+    Retrieve an article by article ID in its group. Falls back to storage
+    instance's regular retrieval method if cache is disabled/unavailable.
     '''
+
+    filename = self._idtofile(group, articleid)
+
+    timestamp = os.stat(filename)[ST_MTIME]
+
+    # Make a token effort to update stale cache entries (comparing the contents
+    # would create the same I/O bottleneck again)
+    if self.cache[filename]['timestamp'] < timestamp:
+      self.cache[filename] = self.read_message(filename) 
+
+    return self.cache[filename]
+
 
   def message_bymid(self, message_id):
     '''
-    Retrieve an article by message ID. Falls back to storage's regular
-    retrieval methods if cache is disabled/unavailable.
+    Retrieve an article by message ID. Falls back to storage instance's regular
+    retrieval method if cache is disabled/unavailable.
     '''
 
   def create_cache(self, group):
@@ -108,14 +130,22 @@ class HeaderCache:
 
       # Add pointers to message data structure
       self.midindex[mid] = filename
-      self.groupindex[group][os.path.basename(filename)] = filename
 
 
   def read_message(self, filename):
       '''Reads an RFC822 message and creates a data structure containing selected metadata'''
       f = open(filename)
-      lines = len(f.read().split('\n'))
+
+      # Count lines and bytes
+      l = f.read().split('\n')
+      lines = len(l)
+      message_bytes = 0
+      for line in l:
+        message_bytes += len(line)
+      message_bytes += lines # newlines are bytes, too
+
       f.seek(0)
+
       m = rfc822.Message(f)
 
       # Create in-memory data structure with readline() support to minimize I/O
@@ -147,18 +177,27 @@ class HeaderCache:
         # Remove angle braces and white space from message ID
         mid = mid.strip('<> ')
 
-      return {
+      metadata = {
         'filename': filename,
         'timestamp': time.time(),
         'lines': lines,
+        'bytes': message_bytes,
         'headers': {
            'date': m.getheader('date'),
            'from': m.getheader('from'),
            'message-id': mid,
            'subject': m.getheader('subject'),
+           'references': m.getheader('references'),
          }
 
       }
+
+      # Make sure no headers are None
+      for header in metadata['headers']:
+        if metadata['headers'][header] is None:
+          metadata['headers'][header] = ''
+
+      return metadata
 
 
   def read_cache(self, group):
@@ -375,28 +414,26 @@ class Papercut_Storage:
             
         overviews = []
         for id in range(start_id, end_id + 1):
-            msg = self.get_message(group_name, id)
+            msg = self.cache.message_byid(self._groupname2group(group_name), id)
             
             if msg is None:
                 break
             
-            author = msg.get('from')
-            formatted_time = msg.get('date')
-            message_id = self.get_message_id(id, group_name)
-            line_count = len(msg.fp.read().split('\n'))
+            author = msg['headers']['from']
+            formatted_time = msg['headers']['date']
+            message_id = msg['headers']['message-id']
+            line_count = msg['lines']
             xref = 'Xref: %s %s:%d' % (settings.nntp_hostname, group_name, id)
             
-            if msg.get('references') is not None:
-                reference = msg.get('references')
-            else:
-                reference = ""
+            reference = msg['headers']['references']
+            msg_bytes = msg['bytes']
             # message_number <tab> subject <tab> author <tab> date <tab>
             # message_id <tab> reference <tab> bytes <tab> lines <tab> xref
             
             overviews.append("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % \
                              (id, msg.get('subject'), author,
                               formatted_time, message_id, reference,
-                              len(strutil.format_body(msg.fp.read())),
+                              msg_bytes,
                               line_count, xref))
             
         return "\r\n".join(overviews)
