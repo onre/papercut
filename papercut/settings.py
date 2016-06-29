@@ -100,6 +100,9 @@ CONFIG_DEFAULT = {
   # [mbox] directory where mbox files are located (you can use shell
   # environment variables)
   'mbox_path': "$HOME/.papercut/mboxes/",
+  # [maildir] directory where maildirs are located (you can use shell
+  # environment variables)
+  'maildir_path': "$HOME/Maildir",
 }
 
 # Keys that may contain a path to interpolate environment variables into.
@@ -108,6 +111,7 @@ PATH_KEYS = {
   'log_file': 1,
   'nntp_cache_path': 1,
   'mbox_path': 1,
+  'maildir_path': 1,
 }
 
 # Will hold the sole authoritative instance of the Config class below.
