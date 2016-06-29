@@ -1,0 +1,8 @@
+# This is a simple example configuration for exposing a flat directory full of
+# mbox files via NNTP.
+maildir_path: '$HOME/Maildir'
+nntp_hostname: localhost
+nntp_port: 1119
+storage_backend: maildir
+server_type: read-only
+log_file: ~/.papercut/logs/papercut.log
