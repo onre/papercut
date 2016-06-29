@@ -35,9 +35,16 @@ def maildir_date_cmp(a, b):
     """compare maildir file names 'a' and 'b' for sort()"""
     a = os.path.basename(a)
     b = os.path.basename(b)
-    a = int(a[: a.find(".")])
-    b = int(b[: b.find(".")])
-    return cmp(a, b)
+    # Extract portion before first dot (timestamp)
+    a = a[: a.find(".")]
+    b = b[: b.find(".")]
+    # Sanitize timestamp for cases where two files happen to have the same time
+    # stamp and had non-digits added to distinguish them (in the case where
+    # this problem cropped up there was '_0' and '_1' appended at the end of
+    # the time stamp.).
+    a = strutil.filterchars(a, string.digits)
+    b = strutil.filterchars(b, string.digits)
+    return cmp(int(a), int(b))
 
 
 

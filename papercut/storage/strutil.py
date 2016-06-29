@@ -57,3 +57,12 @@ def format_wildcards(pattern):
 
 def format_wildcards_sql(pattern):
     return pattern.replace('*', '%').replace('?', '%')
+
+def filterchars(text, characters):
+    '''Reduces string text to the characters found in string characters'''
+    res = ''
+    for char in text:
+        if char in characters:
+            res += char
+
+    return res
