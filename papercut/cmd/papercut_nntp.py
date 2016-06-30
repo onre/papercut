@@ -104,11 +104,12 @@ def list_backends():
   if settings.storage_backend:
     backend_map['papercut'] = settings.storage_backend
 
-  for h in settings.hierarchies:
-    try:
-      backend_map[h] = settings.hierarchies[h]['backend']
-    except KeyError:
-      backend_map[h] = settings.storage_backend
+  if isinstance(settings.hierarchies, dict):
+    for h in settings.hierarchies:
+      try:
+        backend_map[h] = settings.hierarchies[h]['backend']
+      except KeyError:
+        backend_map[h] = settings.storage_backend
 
   return backend_map
 

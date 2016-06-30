@@ -156,7 +156,12 @@ class Config:
     self.opts = self.parse_opts()
     config_files = [ '/etc/papercut/papercut.yaml', os.path.expanduser('~/.papercut/papercut.yaml') ]
     if self.opts.config:
-      config_files = self.opts.config
+      config_files = []
+      for c in self.opts.config:
+        if os.path.exists(c):
+          config_files.append(c)
+        else:
+          print("WARNING: configuration file %s: no such file or directory" % c, file=sys.stderr)
 
     configs = [CONFIG_DEFAULT]
 
@@ -200,7 +205,6 @@ class Config:
     try:
       f = open(source)
     except IOError as e:
-      print("WARNING: Couldn't open configuration file %s for reading: %s, ignoring" % (source, e.strerror), file=sys.stderr)
       return {}
     return yaml.safe_load(f)
 
