@@ -261,14 +261,17 @@ class Papercut_Storage:
       'message-id': True, # Regular message IDs supported (For ARTICLE, HEAD, STAT)
       }
 
-    def __init__(self, group_prefix="papercut.maildir."):
-        self.maildir_dir = settings.maildir_path
+    def __init__(self, group_prefix="papercut.maildir.", local_settings={}):
+        self.maildir_path = settings.maildir_path
         self.group_prefix = group_prefix
-        self.cache = HeaderCache(self.maildir_dir)
 
+        # Override global settings with hierarchy specific ones
+        self.__dict__.update(local_settings)
+
+        self.cache = HeaderCache(self.maildir_path)
 
     def _get_group_dir(self, group):
-        return os.path.join(self.maildir_dir, group)
+        return os.path.join(self.maildir_path, group)
 
 
     def _groupname2group(self, group_name):
@@ -284,7 +287,7 @@ class Papercut_Storage:
         self.cache.refresh_dircache(group)
 
     def get_groupname_list(self):
-        groups = dircache.listdir(self.maildir_dir)
+        groups = dircache.listdir(self.maildir_path)
         return ["papercut.maildir.%s" % k for k in groups]
 
 
@@ -299,7 +302,7 @@ class Papercut_Storage:
     
     def get_group_article_count(self, group):
         self._new_to_cur(group)
-        articles = dircache.listdir(os.path.join(self.maildir_dir, group))
+        articles = dircache.listdir(os.path.join(self.maildir_path, group))
         return len(articles)
 
        
@@ -346,7 +349,7 @@ class Papercut_Storage:
 
     # UNTESTED
     def get_NEWNEWS(self, ts, group='*'):
-        gpaths = glob.glob(os.path.join(self.maildir_dir, group))
+        gpaths = glob.glob(os.path.join(self.maildir_path, group))
         articles = []
         for gpath in gpaths:
             articles = dircache.listdir(os.path.join(gpath, "cur"))
@@ -407,7 +410,7 @@ class Papercut_Storage:
           id = int(id)
           try:
             article = self.get_group_article_list(group)[id - 1]
-            filename = os.path.join(self.maildir_dir, group, "cur", article)
+            filename = os.path.join(self.maildir_path, group, "cur", article)
           except IndexError:
               return None
         except ValueError:
@@ -609,8 +612,8 @@ class Papercut_Storage:
                                     count, socket.gethostname())
         group = self._groupname2group(group_name)
         groupdir = self._get_group_dir(group)
-        tfpath = os.path.join(self.maildir_dir, groupdir, "tmp", file)
-        nfpath = os.path.join(self.maildir_dir, groupdir, "new", file)
+        tfpath = os.path.join(self.maildir_path, groupdir, "tmp", file)
+        nfpath = os.path.join(self.maildir_path, groupdir, "new", file)
         
         fd = open(tfpath, 'w')
         fd.write(body)
