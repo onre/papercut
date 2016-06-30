@@ -304,6 +304,33 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
           total_articles, first_art_num, last_art_num = group_backend.get_GROUP(self.tokens[1])
           self.send_response(STATUS_GROUPSELECTED % (total_articles, first_art_num, last_art_num, self.tokens[1]))
 
+    def _backends_group_exists(self, group):
+      '''
+      Checks whether a group exists for a backend and returns that backend
+      '''
+
+      for backend in backends.values():
+        if backend.group_exists(group):
+          return backend
+      return None
+
+
+    def _multi_newnews(self, param, timestamp, group_backend=None):
+        '''
+        Calls newnews for all for group_backend if we already know where to
+        look and for all of them otherwise.
+        '''
+        news = ''
+        if group_backend:
+          news = group_backend.get_NEWNEWS(timestamp, param)
+        else:
+          for backend in backends.values():
+            news += backend.get_NEWNEWS(timestamp, param)
+        return news
+
+
+
+
     def do_NEWNEWS(self):
         """
         Syntax:
@@ -315,15 +342,22 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if (len(self.tokens) < 4) or (len(self.tokens) > 6):
             self.send_response(ERR_CMDSYNTAXERROR)
             return
-        # check to see if the group exists
-        if (self.tokens[1] != '*') and (not backend.group_exists(self.tokens[1])):
-            self.send_response(ERR_NOSUCHGROUP)
-            return
+        group_backend = None
+        if self.tokens[1].find('*') == -1 and self.tokens[1].find(',') == -1:
+          group_backend = self._backends_group_exists(self.tokens[1])
+          # Group does not exist if _backend_group_exists() returned None.
+          if group_backend is None:
+              self.send_response(ERR_NOSUCHGROUP)
+              return
+
         if (len(self.tokens) > 4) and (self.tokens[4] == 'GMT'):
             ts = self.get_timestamp(self.tokens[2], self.tokens[3], 'yes')
         else:
             ts = self.get_timestamp(self.tokens[2], self.tokens[3], 'no')
-        news = backend.get_NEWNEWS(ts, self.tokens[1])
+        newnews = ''
+
+        news = self._multi_newnews(self.tokens[1], ts, group_backend)
+
         if len(news) == 0:
             msg = "%s\r\n." % (STATUS_NEWNEWS)
         else:
@@ -908,9 +942,9 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
                 year = "20%s" % (date[:2])
         ts = time.mktime((int(year), int(date[2:4]), int(date[4:6]), int(times[:2]), int(times[2:4]), int(times[4:6]), 0, 0, 0))
         if gmt == 'yes':
-            return time.gmtime(ts)
+            return ts
         else:
-            return time.localtime(ts)
+            return ts + time.timezone
 
     def send_response(self, message):
         if __DEBUG__:

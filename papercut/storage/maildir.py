@@ -350,26 +350,43 @@ class Papercut_Storage:
         return None
 
 
-    # UNTESTED
     def get_NEWNEWS(self, ts, group='*'):
-        gpaths = glob.glob(os.path.join(self.maildir_path, group))
-        articles = []
-        for gpath in gpaths:
-            articles = dircache.listdir(os.path.join(gpath, "cur"))
-            group = os.path.basename(gpath)
-            group_name = self._group2groupname(group)
+        groups = []
+        for token in group.split(','):
+          # This will still break some wildcards (e.g. *foo.bar
+          # if the prefix is foo.bar.baz) but it will at least work for
+          # full group names.
+          token = self._groupname2group(token)
+          glob_target = os.path.join(self.maildir_path, token)
+          groups.extend(glob.glob(glob_target))
+
+        # Nonexistent groups and/or patterns that do not match
+        if len(groups) == 0:
+          return ''
+
+        mids = []
+        res = []
+        for group in groups:
+            groupdir = os.path.join(self.maildir_path, group, "cur")
+
+            # Make sure we have an up-to-date cache for retrieving message IDs
+            self.cache.refresh_dircache(group)
+
+            articles = self.cache.dircache[group]
 
             for article in articles:
-                apath = os.path.join(gpath, "cur", article)
+                apath = os.path.join(groupdir, article)
                 if os.path.getmtime(apath) < ts:
                     continue
+                try:
+                  res.append(self.cache.cache[apath]['headers']['message-id'])
+                except KeyError:
+                  pass
 
-                articles.append("<%s@%s" % (article, group_name))
-
-        if len(articles) == 0:
+        if len(res) == 0:
             return ''
         else:
-            return "\r\n".join(articles)
+            return "\r\n".join(res)
 
 
     def get_GROUP(self, group_name):
