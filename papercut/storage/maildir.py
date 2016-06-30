@@ -99,6 +99,12 @@ class HeaderCache:
     ID is unknown.
     '''
 
+    try:
+      return self.midindex[message_id]
+    except KeyError:
+      return None
+
+
   def create_cache(self, group):
     '''Create an entirely new cache for a group (in memory and on disk)'''
     groupdir = os.path.join(self.path, group)
@@ -176,9 +182,6 @@ class HeaderCache:
         basename = strutil.filterchars(basename, string.letters + string.digits)
 
         mid = basename + '@' + hostname
-      else:
-        # Remove angle braces and white space from message ID
-        mid = mid.strip('<> ')
 
       metadata = {
         'filename': filename,
@@ -222,6 +225,11 @@ class Papercut_Storage:
     Storage backend interface for mbox files
     """
     _proc_post_count = 0
+
+    # Capabilities of this storage backend
+    capabilities = {
+      'message-id': True, # Regular message IDs supported (For ARTICLE, HEAD, STAT)
+      }
 
     def __init__(self, group_prefix="papercut.maildir."):
         self.maildir_dir = settings.maildir_path
@@ -292,7 +300,10 @@ class Papercut_Storage:
 
 
     def get_message_id(self, msg_num, group_name):
-        msg_num = int(msg_num)
+        try:
+          msg_num = int(msg_num)
+        except ValueError:
+          return msg_num
         group = self._groupname2group(group_name)
         return '<%s@%s>' % (self.get_group_article_list(group)[msg_num - 1],
                             group_name)
@@ -358,15 +369,25 @@ class Papercut_Storage:
         
     def get_message(self, group_name, id):
         group = self._groupname2group(group_name)
-        id = int(id)
-        
+
+        filename = ''
+
         try:
+          id = int(id)
+          try:
             article = self.get_group_article_list(group)[id - 1]
-            file = os.path.join(self.maildir_dir, group, "cur", article)
-            return rfc822.Message(open(file))
+            filename = os.path.join(self.maildir_dir, group, "cur", article)
+          except IndexError:
+              return None
+        except ValueError:
+          # Treat non-numeric ID as Message-ID
+          filename = (self.cache.message_bymid(id))
+
+        try:
+          return rfc822.Message(open(filename))
+        except IOError:
+          return None
         
-        except IndexError:
-            return None
 
 
     def get_ARTICLE(self, group_name, id):
@@ -432,7 +453,7 @@ class Papercut_Storage:
             
             author = msg['headers']['from']
             formatted_time = msg['headers']['date']
-            message_id = "<%s>" % msg['headers']['message-id']
+            message_id = msg['headers']['message-id']
             line_count = msg['lines']
             xref = 'Xref: %s %s:%d' % (settings.nntp_hostname, group_name, id)
             

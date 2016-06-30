@@ -832,7 +832,17 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         self.send_response(STATUS_SERVER_VERSION)
 
     def get_number_from_msg_id(self, msg_id):
-        return msg_id[1:msg_id.find('@')]
+        '''
+        Mangles the message ID by extracting just the local part for backend
+        plugins that cannot handle regular message IDs. No action for plugins
+        that can deal with regular message IDs.
+        '''
+
+        try:
+          if backend.__class__.capabilities['message-id']:
+              return msg_id
+        except (AttributeError, KeyError):
+            return msg_id[1:msg_id.find('@')]
 
     def index_in_list(self, list, index):
         for item in list:
