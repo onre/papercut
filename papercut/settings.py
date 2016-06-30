@@ -103,6 +103,14 @@ CONFIG_DEFAULT = {
   # [maildir] directory where maildirs are located (you can use shell
   # environment variables)
   'maildir_path': "$HOME/Maildir",
+
+  # Hierarchy specific configuration (dict). This can be used to create
+  # hierarchies such as my.hierarchy where your groups, e.g.
+  # my.hierarchy.agroup, my.hierarchy.bgroup appear. For backend plugins that
+  # support this (currently just maildir) multiple instances of the same
+  # backend (each with its dedicated configuration) will be created.
+
+  'hierarchies': None,
 }
 
 # Keys that may contain a path to interpolate environment variables into.
@@ -201,7 +209,7 @@ class Config:
     '''Interpolates environment and home directory into values that may contain paths'''
     for key in conf:
       if isinstance(conf[key], dict):
-        conf[key] = path_keys(conf[key])
+        conf[key] = self.path_keys(conf[key])
         continue
       if PATH_KEYS.has_key(key):
         conf[key] = os.path.expandvars(conf[key])
@@ -212,6 +220,20 @@ class Config:
   def check_config(self):
     '''Performs some sanity checks on a configuration dict and automatically fix some problems'''
 
+    if self.config.storage_backend is None:
+      backend_found = None
+
+      try:
+        for h in self.config.hierarchies:
+          if self.config.hierarchies[h].has_key('backend'):
+            backend_found = True
+            break
+      except TypeError:
+        pass
+
+      if backend_found is None:
+        sys.exit('No global or hierarchy specific storage backends found. ' +
+                 'Please configure at least one storage backend.')
 
     # check for the appropriate options
     if self.config.nntp_auth == 'yes' and cfg.auth_backend == '':
