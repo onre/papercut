@@ -66,7 +66,8 @@ class HeaderCache:
   def __init__(self, storage, is_active):
     self.storage = storage
     self.path = storage.maildir_dir
-    self.cache = {}
+    self.cache = {}        # Message cache
+    self.dircache = {}     # Group directory caches
     self.midindex = {}     # Global message ID index
     self.groupindex = {}   # Per group file name index
     self.is_active = is_active
@@ -79,7 +80,7 @@ class HeaderCache:
   def _idtofile(self, group, articleid):
     '''Converts an group/article ID to a file name'''
     articledir = os.path.join(self.path, group, 'cur')
-    articles = dircache.listdir(articledir)
+    articles = self.dircache[group]
     articles.sort(maildir_date_cmp)
     return os.path.join(self.path, articledir, articles[articleid-1])
 
@@ -97,14 +98,10 @@ class HeaderCache:
 
     filename = self._idtofile(group, articleid)
 
-    timestamp = os.stat(filename)[ST_MTIME]
-
-    # Make a token effort to update stale cache entries (comparing the contents
-    # would create the same I/O bottleneck again)
-    if self.cache[filename]['timestamp'] < timestamp:
-      self.cache[filename] = self.read_message(filename) 
-
-    return self.cache[filename]
+    try:
+      return self.cache[filename]
+    except IndexError:
+      return None
 
 
   def message_bymid(self, message_id):
@@ -119,9 +116,9 @@ class HeaderCache:
     new_to_cur(groupdir)
     curdir = os.path.join(groupdir, 'cur')
 
-    self.groupindex[group] = {}
+    self.refresh_dircache(group)
 
-    for message in dircache.listdir(curdir):
+    for message in self.dircache[group]:
       filename = os.path.join(curdir, message)
       ret = self.read_message(filename)
 
@@ -130,6 +127,22 @@ class HeaderCache:
 
       # Add pointers to message data structure
       self.midindex[mid] = filename
+
+
+  def refresh_dircache(self, group):
+    '''
+    Refresh internal directory cache for a group. We need to keep this cache
+    since the dircache one performs a stat() on the directory for each
+    invocation which makes it disastrously slow in a place like message_byid()
+    that may be called thousands of times when processing a XOVER.
+    '''
+    groupdir = os.path.join(self.path, group)
+    new_to_cur(groupdir)
+    curdir = os.path.join(groupdir, 'cur')
+
+    if not self.dircache.has_key(group):
+      self.dircache[group] = {}
+    self.dircache[group] = dircache.listdir(curdir)
 
 
   def read_message(self, filename):
@@ -417,6 +430,10 @@ class Papercut_Storage:
             end_id = int(end_id)
             
         overviews = []
+
+        # Refresh directory cache to get a reasonably current view
+        self.cache.refresh_dircache(self._groupname2group(group_name))
+
         for id in range(start_id, end_id + 1):
             msg = self.cache.message_byid(self._groupname2group(group_name), id)
             
