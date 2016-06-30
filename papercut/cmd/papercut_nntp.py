@@ -93,12 +93,46 @@ else:
     class NNTPServer(SocketServer.ThreadingTCPServer):
         allow_reuse_address = 1
 
-# dynamic loading of the appropriate storage backend module
-temp = __import__('papercut.storage.%s' % (settings.storage_backend), globals(), locals(), ['Papercut_Storage'])
-if settings.nntp_cache == 'yes':
-    backend = papercut_cache.Cache(temp, papercut_cache.cache_methods)
-else:
-    backend = temp.Papercut_Storage()
+def list_backends():
+  '''
+  Collects all storage backends from configuration and returns dict mapping
+  hierarchy to backend name
+  '''
+
+  backend_map = {}
+
+  if settings.storage_backend:
+    backend_map['papercut'] = settings.storage_backend
+
+  for h in settings.hierarchies:
+    try:
+      backend_map[h] = settings.hierarchies[h]['backend']
+    except KeyError:
+      backend_map[h] = settings.storage_backend
+
+  return backend_map
+
+
+# Get list of backends from configuration
+backends = list_backends()
+
+# Load all backends and make them accessible by hierarchy
+for h in backends:
+  # dynamic loading of the appropriate storage backend module
+  temp = __import__('papercut.storage.%s' % (backends[h]), globals(), locals(), ['Papercut_Storage'])
+  backend=None
+  # papercut. is a reserved hierarchy for global backends
+  if h == 'papercut':
+    # Cache only works for parameterless Papercut_Storage constructors so
+    # let's restrict it to the global backend for now.
+    if settings.nntp_cache == 'yes':
+      backend = papercut_cache.Cache(temp, papercut_cache.cache_methods)
+    else:
+      backend = temp.Papercut_Storage()
+  # All other hierarchies get configuration from the hierarchies dict
+  else:
+    backend = temp.Papercut_Storage(h, settings.hierarchies[h])
+  backends[h] = backend
 
 # load authentication module, if needed
 if settings.nntp_auth == 'yes':
@@ -897,6 +931,10 @@ def main():
         sys.exit(0)
 
     signal.signal(signal.SIGINT, sighandler)
-    print 'Papercut %s (%s storage module) - starting up' % (__VERSION__, settings.storage_backend)
-    server = NNTPServer((settings.nntp_hostname, settings.nntp_port), NNTPRequestHandler)
+    if settings.storage_backend:
+      print 'Papercut %s (global storage module %s) - starting up' % (__VERSION__, settings.storage_backend)
+      server = NNTPServer((settings.nntp_hostname, settings.nntp_port), NNTPRequestHandler)
+    else:
+      print 'Papercut %s (no global storage module) - starting up' % __VERSION__
+      server = NNTPServer((settings.nntp_hostname, settings.nntp_port), NNTPRequestHandler)
     server.serve_forever()
