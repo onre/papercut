@@ -223,14 +223,23 @@ class Config:
     if self.config.storage_backend is None:
       backend_found = None
 
+      # hierarchies with illegal names
+      bad_hierarchies = []
+
       try:
         for h in self.config.hierarchies:
+          if h.startswith('papercut'):
+            bad_hierarchies.append(h)
           if self.config.hierarchies[h].has_key('backend'):
             backend_found = True
-            break
       except TypeError:
         pass
 
+      if len(bad_hierarchies) != 0:
+        for h in bad_hierarchies:
+          print('Illegal hierarchy name: %s (papercut* is reserved for global storage plugins)' % h,
+                file=sys.stderr)
+        sys.exit(1)
       if backend_found is None:
         sys.exit('No global or hierarchy specific storage backends found. ' +
                  'Please configure at least one storage backend.')
