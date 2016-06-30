@@ -115,13 +115,7 @@ class HeaderCache:
 
     for message in self.dircache[group]:
       filename = os.path.join(curdir, message)
-      ret = self.read_message(filename)
-
-      self.cache[filename] = ret
-      mid = ret['headers']['message-id']
-
-      # Add pointers to message data structure
-      self.midindex[mid] = filename
+      self.refresh_article(filename, group, curdir)
 
 
   def refresh_dircache(self, group):
@@ -136,10 +130,46 @@ class HeaderCache:
     curdir = os.path.join(groupdir, 'cur')
 
     if not self.dircache.has_key(group):
-      self.dircache[group] = {}
+      self.dircache[group] = []
+
+    # Keep a copy of old cache for cleanup of stale entries
+    oldcache = self.dircache[group]
+
     self.dircache[group] = dircache.listdir(curdir)
     self.dircache[group].sort(maildir_date_cmp)
 
+    # Iterate over both the old and new cache to process new entries and clean
+    # up old ones
+    for i in range(0, max(len(self.dircache), len(oldcache))):
+      # Create new entries
+      try:
+        filename = os.path.join(curdir, self.dircache[group][i])
+        if not self.cache.has_key(filename):
+          self.refresh_article(filename, group, curdir)
+      except IndexError:
+        # Either or self.dircache may be shorter, causing IndexError. We can
+        # safely ignore these.
+        pass
+
+      # Get rid of stale entries
+      try:
+        filename = os.path.join(curdir, oldcache[i])
+        oldmid = self.cache[filename]['headers']['message-id']
+        if not os.path.exists(filename):
+          self.cache.pop(filename)
+          self.midindex.pop(mid)
+      except IndexError:
+        # Either or self.dircache may be shorter, causing IndexError. We can
+        # safely ignore these.
+        pass
+
+
+  def refresh_article(self, filename, group, curdir):
+    ret = self.read_message(filename)
+    mid = ret['headers']['message-id']
+
+    self.cache[filename] = ret
+    self.midindex[mid] = filename
 
   def read_message(self, filename):
       '''Reads an RFC822 message and creates a data structure containing selected metadata'''
@@ -251,6 +281,7 @@ class Papercut_Storage:
 
     def _new_to_cur(self, group):
         new_to_cur(self._get_group_dir(group))
+        self.cache.refresh_dircache(group)
 
     def get_groupname_list(self):
         groups = dircache.listdir(self.maildir_dir)
