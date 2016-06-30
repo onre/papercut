@@ -1,0 +1,13 @@
+# This is an example configuration for exposing multiple maildirs via NNTP.
+nntp_hostname: localhost
+nntp_port: 1119
+storage_backend: null
+server_type: read-only
+log_file: ~/.papercut/logs/papercut.log
+hierarchies:
+  my.groups:
+    backend: maildir
+    maildir_path: '$HOME/maildirs/groups'
+  my.othergroups:
+    backend: maildir
+    maildir_path: '$HOME/maildirs/othergroups'
