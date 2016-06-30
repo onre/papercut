@@ -275,7 +275,7 @@ class Papercut_Storage:
 
 
     def _groupname2group(self, group_name):
-        return group_name.replace(self.group_prefix, '')
+        return group_name.replace(self.group_prefix, '').strip('.')
 
 
     def _group2groupname(self, group):
@@ -288,7 +288,10 @@ class Papercut_Storage:
 
     def get_groupname_list(self):
         groups = dircache.listdir(self.maildir_path)
-        return ["papercut.maildir.%s" % k for k in groups]
+        group_list = []
+        for group in groups:
+          group_list.append("%s.%s" % (self.group_prefix, group))
+        return group_list
 
 
     def get_group_article_list(self, group):

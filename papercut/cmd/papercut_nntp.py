@@ -262,7 +262,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         else:
             ts = self.get_timestamp(self.tokens[1], self.tokens[2], 'no')
         allgroups = None
-        for backend in backends.values:
+        for backend in backends.values():
           groups = backend.get_NEWGROUPS(ts)
           if groups is not None:
             allgroups += groups
@@ -289,13 +289,20 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if len(self.tokens) != 2:
             self.send_response(ERR_CMDSYNTAXERROR)
             return
+        group_backend = None
         # check to see if the group exists
-        if not backend.group_exists(self.tokens[1]):
-            self.send_response(ERR_NOSUCHGROUP)
-            return
-        self.selected_group = self.tokens[1]
-        total_articles, first_art_num, last_art_num = backend.get_GROUP(self.tokens[1])
-        self.send_response(STATUS_GROUPSELECTED % (total_articles, first_art_num, last_art_num, self.tokens[1]))
+        for backend in backends.values():
+          if backend.group_exists(self.tokens[1]):
+              group_backend = backend
+              break
+
+        if group_backend is None:
+          self.send_response(ERR_NOSUCHGROUP)
+          return
+        else:
+          self.selected_group = self.tokens[1]
+          total_articles, first_art_num, last_art_num = group_backend.get_GROUP(self.tokens[1])
+          self.send_response(STATUS_GROUPSELECTED % (total_articles, first_art_num, last_art_num, self.tokens[1]))
 
     def do_NEWNEWS(self):
         """
