@@ -275,7 +275,7 @@ class Papercut_Storage:
 
 
     def _groupname2group(self, group_name):
-        return group_name.replace(self.group_prefix, '').strip('.')
+        return group_name.replace(self.group_prefix, '', 1).strip('.')
 
 
     def _group2groupname(self, group):
