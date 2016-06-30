@@ -397,7 +397,9 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         elif len(self.tokens) == 2:
             self.send_response(ERR_NOTPERFORMED)
             return
-        result = backend.get_LIST(self.auth_username)
+        result = ''
+        for backend in backends.values():
+          result += backend.get_LIST(self.auth_username)
         self.send_response("%s\r\n%s\r\n." % (STATUS_LIST, result))
 
     def do_STAT(self):
@@ -734,10 +736,13 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if len(self.tokens) > 3:
             self.send_response(ERR_CMDSYNTAXERROR)
             return
+        info = ''
         if len(self.tokens) == 3:
-            info = backend.get_XGTITLE(self.tokens[2])
+            for backend in backends.values():
+              info += backend.get_XGTITLE(self.tokens[2])
         else:
-            info = backend.get_XGTITLE()
+            for backend in backends.values():
+              info += backend.get_XGTITLE()
         self.send_response("%s\r\n%s\r\n." % (STATUS_LISTNEWSGROUPS, info))
 
     def do_HDR(self):
