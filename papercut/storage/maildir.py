@@ -81,7 +81,6 @@ class HeaderCache:
     '''Converts an group/article ID to a file name'''
     articledir = os.path.join(self.path, group, 'cur')
     articles = self.dircache[group]
-    articles.sort(maildir_date_cmp)
     return os.path.join(self.path, articledir, articles[articleid-1])
 
   def message_byname(self, filename):
@@ -143,6 +142,7 @@ class HeaderCache:
     if not self.dircache.has_key(group):
       self.dircache[group] = {}
     self.dircache[group] = dircache.listdir(curdir)
+    self.dircache[group].sort(maildir_date_cmp)
 
 
   def read_message(self, filename):
