@@ -261,11 +261,16 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             ts = self.get_timestamp(self.tokens[1], self.tokens[2], 'yes')
         else:
             ts = self.get_timestamp(self.tokens[1], self.tokens[2], 'no')
-        groups = backend.get_NEWGROUPS(ts)
-        if groups == None:
+        allgroups = None
+        for backend in backends.values:
+          groups = backend.get_NEWGROUPS(ts)
+          if groups is not None:
+            allgroups += groups
+
+        if allgroups == None:
             msg = "%s\r\n." % (STATUS_NEWGROUPS)
         else:
-            msg = "%s\r\n%s\r\n." % (STATUS_NEWGROUPS, groups)
+            msg = "%s\r\n%s\r\n." % (STATUS_NEWGROUPS, allgroups)
         self.send_response(msg)
 
     def do_GROUP(self):
