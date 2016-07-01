@@ -537,7 +537,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if self.selected_article == 'ggg':
             self.send_response(ERR_NOARTICLESELECTED)
             return
-        backend = _backend_from_group(self.selected_group)
+        backend = self._backend_from_group(self.selected_group)
         article_num = backend.get_LAST(self.selected_group, self.selected_article)
         if article_num == None:
             self.send_response(ERR_NOPREVIOUSARTICLE)

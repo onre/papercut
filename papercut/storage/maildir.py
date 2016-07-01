@@ -467,6 +467,11 @@ class Papercut_Storage:
 
 
     def get_LAST(self, group_name, current_id):
+        try:
+          current_id = int(current_id)
+        except ValueError:
+          # non-numeric ID is garbage
+          return None
         if current_id <= 1:
             return None
         return current_id - 1
