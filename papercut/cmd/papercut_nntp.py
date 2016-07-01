@@ -704,6 +704,8 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         self.send_response(msg)
 
     def do_XPAT(self):
+        # TODO: Convert this to multi backend operation (it's a fairly obscure
+        # command and not strictly neccesary)
         """
         Syntax:
             XPAT header range|<message-id> pat [pat...]
@@ -746,21 +748,38 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             412 Not currently in newsgroup
             502 no permission
         """
+        backend = None
         if len(self.tokens) > 2:
             self.send_response(ERR_CMDSYNTAXERROR)
             return
         if len(self.tokens) == 2:
+            backend = self._backend_from_group(self.tokens[1])
             # check if the group exists
-            if not backend.group_exists(self.tokens[1]):
+            if not backend or not backend.group_exists(self.tokens[1]):
                 # the draft of the new NNTP protocol tell us to reply this instead of an empty list
                 self.send_response(ERR_NOSUCHGROUP)
                 return
-            numbers = backend.get_LISTGROUP(self.tokens[1])
+            try:
+              numbers = backend.get_LISTGROUP(self.tokens[1])
+            # TODO: Introduce a dedicated exception for this kind of thing -
+            # depending on the plugin this might be a ENOENT or a database
+            # exception.
+            except KeyError:
+              self.send_response(ERR_NOSUCHGROUP)
+              return
         else:
             if self.selected_group == 'ggg':
                 self.send_response(ERR_NOGROUPSELECTED)
                 return
-            numbers = backend.get_LISTGROUP(self.selected_group)
+            backend = self._backend_from_group(self.selected_group)
+            try:
+              numbers = backend.get_LISTGROUP(self.selected_group)
+            # TODO: Introduce a dedicated exception for this kind of thing -
+            # depending on the plugin this might be a ENOENT or a database
+            # exception.
+            except KeyError:
+              self.send_response(ERR_NOSUCHGROUP)
+              return
         check = numbers.split('\r\n') 
         if len(check) > 0:
             # When a valid group is selected by means of this command, the

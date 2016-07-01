@@ -125,7 +125,15 @@ class HeaderCache:
     invocation which makes it disastrously slow in a place like message_byid()
     that may be called thousands of times when processing a XOVER.
     '''
+    # Sanitize group name to prevent directory traversal
+    group.replace('..', '')
+
     groupdir = os.path.join(self.path, group)
+
+    # Abort if there is no such group
+    if not os.path.exists(groupdir):
+      return
+
     new_to_cur(groupdir)
     curdir = os.path.join(groupdir, 'cur')
 
@@ -297,11 +305,12 @@ class Papercut_Storage:
 
     def get_group_article_list(self, group):
         self._new_to_cur(group)
-        groupdir = self._get_group_dir(group)
-        articledir = os.path.join(self._get_group_dir(group), 'cur')
-        articles = dircache.listdir(articledir)
-        articles.sort(maildir_date_cmp)
-        return articles
+        self.cache.refresh_dircache(group)
+        try:
+          articles = self.cache.dircache[group]
+          return articles
+        except KeyError:
+          return []
 
     
     def get_group_article_count(self, group):
@@ -329,8 +338,9 @@ class Papercut_Storage:
 
 
     def get_group_stats(self, group_name):
-        total, max, min = self.get_maildir_stats(group_name)
-        return (total, min, max, group_name)
+        group = self._groupname2group(group_name)
+        total, max, min = self.get_maildir_stats(group)
+        return (total, min, max, group)
 
 
     def get_maildir_stats(self, group_name):
@@ -633,7 +643,9 @@ class Papercut_Storage:
 
 
     def get_LISTGROUP(self, group_name):
-        ids = range(1, self.get_group_article_count(group) + 1)
+        group = self._groupname2group(group_name)
+        self.cache.refresh_dircache(group)
+        ids = range(1, len(self.cache.dircache[group]) + 1)
         ids = [str(id) for id in ids]
         return "\r\n".join(ids)
 
