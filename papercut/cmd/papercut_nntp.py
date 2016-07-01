@@ -9,6 +9,7 @@ import os
 import signal
 import time
 import re
+import rfc822
 import traceback
 import StringIO
 
@@ -80,7 +81,6 @@ overview_headers = ('Subject', 'From', 'Date', 'Message-ID', 'References', 'Byte
 
 # we don't need to create the regular expression objects for every request, 
 # so let's create them just once and re-use as needed
-newsgroups_regexp = re.compile("^Newsgroups:(.*)", re.M)
 contenttype_regexp = re.compile("^Content-Type:(.*);", re.M)
 authinfo_regexp = re.compile("AUTHINFO PASS")
 
@@ -973,13 +973,17 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             440 posting not allowed
             441 posting failed
         """
-        lines = "\r\n".join(self.article_lines)
+        msg = rfc822.Message(StringIO.StringIO(''.join(self.article_lines)))
+        group_name = msg.getheader('Newsgroups')
+
         # check the 'Newsgroups' header
-        group_name = newsgroups_regexp.search(lines, 0).groups()[0].strip()
-        if not backend.group_exists(group_name):
-            self.send_response(ERR_POSTINGFAILED)
-            return
-        result = backend.do_POST(group_name, lines, self.client_address[0], self.auth_username)
+        backend = self._backend_from_group(group_name)
+        if (not backend          # No backend matches Newsgroups: header
+            or not group_name    # No Newsgroups: header
+            or not backend.group_exists(group_name)): # Group not found in backend
+              self.send_response(ERR_POSTINGFAILED)
+              return
+        result = backend.do_POST(group_name, ''.join(self.article_lines), self.client_address[0], self.auth_username)
         if result == None:
             self.send_response(ERR_POSTINGFAILED)
         else:
