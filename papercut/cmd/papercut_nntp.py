@@ -613,6 +613,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         else:
             self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[0], backend.get_message_id(article_info[1], article_info[0])), body))
 
+
     def do_HEAD(self):
         """
         Syntax:
@@ -672,6 +673,9 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
+
+        backend = self._backend_from_group(self.selected_group)
+
         # check the command style
         if len(self.tokens) == 1:
             # only show the information for the current selected article
