@@ -431,47 +431,43 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             420 no current article has been selected
             421 no next article in this group
         """
-        backend = None
 
-        # check the syntax of the command
-        if len(self.tokens) > 2:
-            self.send_response(ERR_CMDSYNTAXERROR)
-            return
+        backend = None
+        article_info = [] # Holds group/article ID of article
+
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
-        if len(self.tokens) == 1:
-            # check if the currently selected article pointer is set
-            if self.selected_article == 'ggg':
-                self.send_response(ERR_NOARTICLESELECTED)
-                return
-            else:
-                self.tokens.append(self.selected_article)
-                report_article_number = self.tokens[1]
-        else:
-
-          if self.tokens[1].find('<') != -1:
-              # Message ID supplied
-              for b in backends.values():
-                  self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
-                  report_article_number = 0
-                  result = b.get_STAT(self.selected_group, self.tokens[1])
-                  if result:
+        if ((len(self.tokens) == 1) and (self.selected_article == 'ggg')):
+            self.send_response(ERR_NOARTICLESELECTED)
+            return
+        if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
+            # Message ID specified
+            for b in backends.values():
+                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
+                result = b.get_STAT(self.selected_group, self.tokens[1])
+                if result:
                     backend = b
+                    article_info = b.get_article_number(self.tokens[1])
                     break
-          else:
-            # Article number supplied
-            report_article_number = self.tokens[1]
+        else:
+            # Article Number specified or using article number from article
+            # pointer
+            if len(self.tokens) == 2:
+                # Set article pointer if a number was specified
+                self.selected_article = self.tokens[1]
             backend = self._backend_from_group(self.selected_group)
-            result = backend.get_STAT(self.selected_group, self.tokens[1])
+            article_info = [self.selected_group, self.selected_article]
+            result = backend.get_STAT(self.selected_group, self.selected_article)
 
-        if backend == None:
-          self.send_response(ERR_NOSUCHARTICLENUM)
-          return
-        # only set the internally selected article if the article number variation is used
-        if len(self.tokens) == 2 and self.tokens[1].find('<') == -1:
-            self.selected_article = self.tokens[1]
-        self.send_response(STATUS_STAT % (report_article_number, backend.get_message_id(self.tokens[1], self.selected_group)))
+        if result == None:
+            self.send_response(ERR_NOSUCHARTICLENUM)
+
+        else:
+            self.send_response(STATUS_STAT % (article_info[0], backend.get_message_id(article_info[1], article_info[0])))
+
+
+
 
     def do_ARTICLE(self):
         """
