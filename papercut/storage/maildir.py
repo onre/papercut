@@ -51,10 +51,17 @@ def maildir_date_cmp(a, b):
 
 
 def new_to_cur(groupdir):
-    for f in dircache.listdir(os.path.join(groupdir, 'new')):
+    for f in os.listdir(os.path.join(groupdir, 'new')):
         ofp = os.path.join(groupdir, 'new', f)
         nfp = os.path.join(groupdir, 'cur', f + ":2,")
-        os.rename(ofp, nfp)
+        try:
+          os.rename(ofp, nfp)
+        except OSError:
+          # This may have been moved already, with dircache not knowing about
+          # it, yet.
+          print("DEBUG: ofp = %s: %s" % (ofp, os.path.exists(ofp)) )
+          print("DEBUG: nfp = %s: %s" % (nfp, os.path.exists(nfp)) )
+          pass
 
 
 class HeaderCache:
@@ -720,5 +727,6 @@ class Papercut_Storage:
         fd.close
 
         os.rename(tfpath, nfpath)
+        self.cache.refresh_dircache(group)
         return 1
 
