@@ -449,16 +449,22 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
                 self.tokens.append(self.selected_article)
                 report_article_number = self.tokens[1]
         else:
-          for b in backends.values():
-            # get the article number if it is the appropriate option
-            if self.tokens[1].find('<') != -1:
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
-                report_article_number = 0
-            else:
-                report_article_number = self.tokens[1]
-            if b.get_STAT(self.selected_group, self.tokens[1]):
-                backend = b
-                break
+
+          if self.tokens[1].find('<') != -1:
+              # Message ID supplied
+              for b in backends.values():
+                  self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
+                  report_article_number = 0
+                  result = b.get_STAT(self.selected_group, self.tokens[1])
+                  if result:
+                    backend = b
+                    break
+          else:
+            # Article number supplied
+            report_article_number = self.tokens[1]
+            backend = self._backend_from_group(self.selected_group)
+            result = backend.get_STAT(self.selected_group, self.tokens[1])
+
         if backend == None:
           self.send_response(ERR_NOSUCHARTICLENUM)
           return
