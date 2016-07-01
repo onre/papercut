@@ -172,7 +172,7 @@ class HeaderCache:
         oldmid = self.cache[filename]['headers']['message-id']
         if not os.path.exists(filename):
           self.cache.pop(filename)
-          self.midindex.pop(mid)
+          self.midindex.pop(oldmid)
       except IndexError:
         # Either or self.dircache may be shorter, causing IndexError. We can
         # safely ignore these.
@@ -576,7 +576,11 @@ class Papercut_Storage:
         overviews = []
 
         # Refresh directory cache to get a reasonably current view
-        self.cache.refresh_dircache(self._groupname2group(group_name))
+        self.cache.refresh_dircache(group)
+
+        # Adjust end ID downwards if it is out of range
+        if end_id >= len(self.cache.dircache[group]):
+          end_id = len(self.cache.dircache[group]) - 1
 
         for id in range(start_id, end_id + 1):
             msg = self.cache.message_byid(self._groupname2group(group_name), id)
