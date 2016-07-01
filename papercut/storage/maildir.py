@@ -306,7 +306,8 @@ class Papercut_Storage:
     
     def get_group_article_count(self, group):
         self._new_to_cur(group)
-        articles = dircache.listdir(os.path.join(self.maildir_path, group))
+        self.cache.refresh_dircache(group)
+        articles = self.cache.dircache[group]
         return len(articles)
 
        
@@ -341,10 +342,13 @@ class Papercut_Storage:
         try:
           msg_num = int(msg_num)
         except ValueError:
-          return msg_num
+          return None
         group = self._groupname2group(group_name)
-        return '<%s@%s>' % (self.get_group_article_list(group)[msg_num - 1],
-                            group_name)
+        msg = self.cache.message_byid(group, msg_num)
+        try:
+          return msg['headers']['message-id']
+        except KeyError:
+          return None
 
 
     def get_NEWGROUPS(self, ts, group='%'):
@@ -465,12 +469,17 @@ class Papercut_Storage:
             return None
         return ("\r\n".join(["%s" % string.strip(k) for k in msg.headers]), msg.fp.read())
 
-
-    def get_LAST(self, group_name, current_id):
+    def _sanitize_id(self, article_id):
         try:
-          current_id = int(current_id)
+          article_id = int(article_id)
+          return article_id
         except ValueError:
           # non-numeric ID is garbage
+          return None
+
+    def get_LAST(self, group_name, current_id):
+        current_id = self._sanitize_id(current_id)
+        if not current_id:
           return None
         if current_id <= 1:
             return None
@@ -478,8 +487,12 @@ class Papercut_Storage:
 
 
     def get_NEXT(self, group_name, current_id):
+        current_id = self._sanitize_id(current_id)
+        if not current_id:
+          return None
         group = self._groupname2group(group_name)
         if current_id >= self.get_group_article_count(group):
+            print('DEBUG: article_count = %s' % self.get_group_article_count(group))
             return None
         return current_id + 1
         

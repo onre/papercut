@@ -560,6 +560,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
+        backend = self._backend_from_group(self.selected_group)
         if self.selected_article == 'ggg':
             article_num = backend.get_first_article(self.selected_group)
         else:
