@@ -1,6 +1,6 @@
 # Papercut NNTP Server
 
-Papercut is a BSD licencsed NNTP server written in 100% pure Python. It is
+Papercut is a BSD licensed NNTP server written in 100% pure Python. It is
 intended to be extensible to the point where people can develop their own
 plug-ins to integrate the NNTP protocol into their applications (I will be
 happy to request pull requests for new plugins).
