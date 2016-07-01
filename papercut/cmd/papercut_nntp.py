@@ -413,6 +413,8 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             420 no current article has been selected
             421 no next article in this group
         """
+        backend = None
+
         # check the syntax of the command
         if len(self.tokens) > 2:
             self.send_response(ERR_CMDSYNTAXERROR)
@@ -425,19 +427,23 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             if self.selected_article == 'ggg':
                 self.send_response(ERR_NOARTICLESELECTED)
                 return
-            else:                
+            else:
                 self.tokens.append(self.selected_article)
                 report_article_number = self.tokens[1]
         else:
+          for b in backends.values():
             # get the article number if it is the appropriate option
             if self.tokens[1].find('<') != -1:
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1])
+                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 report_article_number = 0
             else:
-                report_article_number = self.tokens[1]      
-        if not backend.get_STAT(self.selected_group, self.tokens[1]):
-            self.send_response(ERR_NOSUCHARTICLENUM)
-            return
+                report_article_number = self.tokens[1]
+            if b.get_STAT(self.selected_group, self.tokens[1]):
+                backend = b
+                break
+        if backend == None:
+          self.send_response(ERR_NOSUCHARTICLENUM)
+          return
         # only set the internally selected article if the article number variation is used
         if len(self.tokens) == 2 and self.tokens[1].find('<') == -1:
             self.selected_article = self.tokens[1]
@@ -917,7 +923,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
     def do_XVERSION(self):
         self.send_response(STATUS_SERVER_VERSION)
 
-    def get_number_from_msg_id(self, msg_id):
+    def get_number_from_msg_id(self, msg_id, backend):
         '''
         Mangles the message ID by extracting just the local part for backend
         plugins that cannot handle regular message IDs. No action for plugins

@@ -95,12 +95,12 @@ class HeaderCache:
 
   def message_bymid(self, message_id):
     '''
-    Return the file name corresponding to a message ID or None if the message
-    ID is unknown.
+    Return the metadata dict corresponding to a message ID or None if the
+    message ID is unknown.
     '''
 
     try:
-      return self.midindex[message_id]
+      return self.cache[self.midindex[message_id]]
     except KeyError:
       return None
 
@@ -165,13 +165,13 @@ class HeaderCache:
 
 
   def refresh_article(self, filename, group, curdir):
-    ret = self.read_message(filename)
+    ret = self.read_message(filename, group)
     mid = ret['headers']['message-id']
 
     self.cache[filename] = ret
     self.midindex[mid] = filename
 
-  def read_message(self, filename):
+  def read_message(self, filename, group):
       '''Reads an RFC822 message and creates a data structure containing selected metadata'''
       f = open(filename)
 
@@ -218,6 +218,7 @@ class HeaderCache:
         'timestamp': time.time(),
         'lines': lines,
         'bytes': message_bytes,
+        'group': group,
         'headers': {
            'date': m.getheader('date'),
            'from': m.getheader('from'),
@@ -415,10 +416,24 @@ class Papercut_Storage:
 
     def get_STAT(self, group_name, id):
         # check if the message exists
-        id = int(id)
-        group = self._groupname2group(group_name)
-        
-        return id <= self.get_group_article_count(group)
+        try:
+          id = int(id)
+          group = self._groupname2group(group_name)
+          return id <= self.get_group_article_count(group)
+        except ValueError:
+          # Treat non-numeric ID as Message-ID
+          msg = self.cache.message_bymid(id)
+          if msg:
+            group = msg['group']
+            self.cache.refresh_dircache(group)
+            try:
+              article_id = self.cache.dircache[group].index(os.path.basename(msg['filename']))
+            except ValueError:
+              return False
+            return article_id <= len(self.cache.dircache[group])
+          else:
+            return False
+
 
         
     def get_message(self, group_name, id):
@@ -435,7 +450,7 @@ class Papercut_Storage:
               return None
         except ValueError:
           # Treat non-numeric ID as Message-ID
-          filename = (self.cache.message_bymid(id))
+          filename = self.cache.message_bymid(id)['filename']
 
         try:
           return rfc822.Message(open(filename))
