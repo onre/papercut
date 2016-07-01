@@ -338,7 +338,32 @@ class Papercut_Storage:
         return cnt, cnt, 1
 
 
+    def get_article_number(self, mid):
+        '''
+        Converts Message ID to group/article number tuple
+        '''
+
+        msg = self.cache.message_bymid(mid)
+
+        if not msg:
+          return [None, -1]
+
+        group = msg['group']
+        article = os.path.basename(msg['filename'])
+        self.cache.refresh_dircache(group)
+        try:
+          article_id = self.cache.dircache[group].index(article)
+          return [group, article_id]
+        except ValueError:
+          # Article has been deleted, but we can at least return the group it
+          # used to be in.
+          return [group, -1]
+
+
     def get_message_id(self, msg_num, group_name):
+        '''
+        Converts group/article number to message ID
+        '''
         try:
           msg_num = int(msg_num)
         except ValueError:
@@ -454,7 +479,11 @@ class Papercut_Storage:
               return None
         except ValueError:
           # Treat non-numeric ID as Message-ID
-          filename = self.cache.message_bymid(id)['filename']
+          try:
+            filename = self.cache.message_bymid(id)['filename']
+          except TypeError:
+            # message_bymid() returned None
+            return None
 
         try:
           return rfc822.Message(open(filename))
@@ -492,7 +521,6 @@ class Papercut_Storage:
           return None
         group = self._groupname2group(group_name)
         if current_id >= self.get_group_article_count(group):
-            print('DEBUG: article_count = %s' % self.get_group_article_count(group))
             return None
         return current_id + 1
         

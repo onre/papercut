@@ -571,6 +571,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         self.selected_article = article_num
         self.send_response(STATUS_STAT % (article_num, backend.get_message_id(article_num, self.selected_group)))
 
+
     def do_BODY(self):
         """
         Syntax:
@@ -578,27 +579,40 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         Responses:
             222 10110 <23445@sdcsvax.ARPA> article retrieved - body follows (body text here)
         """
+
+        backend = None
+        article_info = [] # Holds group/article ID of article
+
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
         if ((len(self.tokens) == 1) and (self.selected_article == 'ggg')):
             self.send_response(ERR_NOARTICLESELECTED)
             return
-        if len(self.tokens) == 2:
-            if self.tokens[1].find('<') != -1:
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1])
-            article_number = self.tokens[1]
-            body = backend.get_BODY(self.selected_group, self.tokens[1])
+        if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
+            # Message ID specified
+            for b in backends.values():
+                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
+                body = b.get_BODY(self.selected_group, self.tokens[1])
+                if body:
+                    backend = b
+                    article_info = b.get_article_number(self.tokens[1])
+                    break
         else:
-            article_number = self.selected_article
+            # Article Number specified or using article number from article
+            # pointer
+            if len(self.tokens) == 2:
+                # Set article pointer if a number was specified
+                self.selected_article = self.tokens[1]
+            backend = self._backend_from_group(self.selected_group)
+            article_info = [self.selected_group, self.selected_article]
             body = backend.get_BODY(self.selected_group, self.selected_article)
+
         if body == None:
             self.send_response(ERR_NOSUCHARTICLENUM)
+
         else:
-            # only set the internally selected article if the article number variation is used
-            if len(self.tokens) == 2 and self.tokens[1].find('<') == -1:
-                self.selected_article = self.tokens[1]
-            self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_number, backend.get_message_id(self.selected_article, self.selected_group)), body))
+            self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[0], backend.get_message_id(article_info[1], article_info[0])), body))
 
     def do_HEAD(self):
         """
@@ -607,27 +621,41 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         Responses:
             221 1013 <5734@mcvax.UUCP> Article retrieved; head follows.
         """
+
+        backend = None
+        article_info = [] # Holds group/article ID of article
+
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
         if ((len(self.tokens) == 1) and (self.selected_article == 'ggg')):
             self.send_response(ERR_NOARTICLESELECTED)
             return
-        if len(self.tokens) == 2:
-            if self.tokens[1].find('<') != -1:
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1])
-            article_number = self.tokens[1]
-            head = backend.get_HEAD(self.selected_group, self.tokens[1])
+        if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
+            # Message ID specified
+            for b in backends.values():
+                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
+                body = b.get_BODY(self.selected_group, self.tokens[1])
+                if body:
+                    backend = b
+                    article_info = b.get_article_number(self.tokens[1])
+                    break
         else:
-            article_number = self.selected_article
-            head = backend.get_HEAD(self.selected_group, self.selected_article)
-        if head == None:
-            self.send_response(ERR_NOSUCHARTICLENUM)
-        else:
-            # only set the internally selected article if the article number variation is used
-            if len(self.tokens) == 2 and self.tokens[1].find('<') == -1:
+            # Article Number specified or using article number from article
+            # pointer
+            if len(self.tokens) == 2:
+                # Set article pointer if a number was specified
                 self.selected_article = self.tokens[1]
-            self.send_response("%s\r\n%s\r\n." % (STATUS_HEAD % (article_number, backend.get_message_id(self.selected_article, self.selected_group)), head))
+            backend = self._backend_from_group(self.selected_group)
+            article_info = [self.selected_group, self.selected_article]
+            body = backend.get_BODY(self.selected_group, self.selected_article)
+
+        if body == None:
+            self.send_response(ERR_NOSUCHARTICLENUM)
+
+        else:
+            self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[0], backend.get_message_id(article_info[1], article_info[0])), body))
+
 
     def do_OVER(self):
         self.do_XOVER()
