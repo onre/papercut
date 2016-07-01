@@ -491,17 +491,22 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
-        for b in backends.values():
-          # get the article number if it is the appropriate option
-          if self.tokens[1].find('<') != -1:
-              self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
-              report_article_number = 0
-          else:
-              report_article_number = self.tokens[1]
-          result = b.get_ARTICLE(self.selected_group, self.tokens[1])
-          if result:
-            backend = b
-            break
+
+        if self.tokens[1].find('<') != -1:
+            # Message ID supplied
+            for b in backends.values():
+                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
+                report_article_number = 0
+                result = b.get_ARTICLE(self.selected_group, self.tokens[1])
+                if result:
+                  backend = b
+                  break
+        else:
+          # Article number supplied
+          report_article_number = self.tokens[1]
+          backend = self._backend_from_group(self.selected_group)
+          result = backend.get_ARTICLE(self.selected_group, self.tokens[1])
+
         if backend == None:
             self.send_response(ERR_NOSUCHARTICLENUM)
         else:
@@ -526,6 +531,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if self.selected_article == 'ggg':
             self.send_response(ERR_NOARTICLESELECTED)
             return
+        backend = _backend_from_group(self.selected_group)
         article_num = backend.get_LAST(self.selected_group, self.selected_article)
         if article_num == None:
             self.send_response(ERR_NOPREVIOUSARTICLE)
