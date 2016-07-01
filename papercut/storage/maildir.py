@@ -377,7 +377,8 @@ class Papercut_Storage:
         try:
           msg_num = int(msg_num)
         except ValueError:
-          return None
+          # Non-numeric, so it's probably a message ID already.
+          return msg_num
         group = self._groupname2group(group_name)
         msg = self.cache.message_byid(group, msg_num)
         try:
@@ -474,7 +475,7 @@ class Papercut_Storage:
             return False
 
 
-        
+
     def get_message(self, group_name, id):
         group = self._groupname2group(group_name)
 
@@ -490,7 +491,7 @@ class Papercut_Storage:
         except ValueError:
           # Treat non-numeric ID as Message-ID
           try:
-            filename = self.cache.message_bymid(id)['filename']
+            filename = self.cache.message_bymid(id.strip())['filename']
           except TypeError:
             # message_bymid() returned None
             return None
@@ -655,7 +656,6 @@ class Papercut_Storage:
 
 
     def get_XHDR(self, group_name, header, style, ranges):
-        print group_name, header, style, ranges
         group = self._groupname2group(group_name)
         header = header.upper()
 
@@ -666,10 +666,19 @@ class Papercut_Storage:
                 range_end = self.get_group_article_count(group)
             ids = range(int(ranges[0]), range_end + 1)
         else:
-            ids = (int(ranges[0]))
+            ids = [ranges]
 
         hdrs = []
         for id in ids:
+            mid = self.get_message_id(id, group_name)
+            meta = self.cache.message_bymid(mid)
+
+            if meta is None:
+              # Message ID unknown
+              return ""
+
+            msg = self.get_message(group_name, id)
+
             if header == 'MESSAGE-ID':
                 hdrs.append('%d %s' % \
                             (id, self.get_message_id(id, group_name)))
@@ -679,16 +688,14 @@ class Papercut_Storage:
                                              group_name, id))
                 continue
 
-            msg = self.get_message(group_name, id)
             if header == 'BYTES':
-                msg.fp.seek(0, 2)
-                hdrs.append('%d %d' % (id, msg.fp.tell()))
+                hdrs.append('%d %d' % (id, meta['bytes']))
             elif header == 'LINES':
-                hdrs.append('%d %d' % (id, len(msg.fp.readlines())))
+                hdrs.append('%d %d' % (id,  meta['lines']))
             else:
                 hdr = msg.get(header)
                 if hdr:
-                    hdrs.append('%d %s' % (id, hdr))
+                    hdrs.append('%s %s' % (id, hdr))
 
         if len(hdrs) == 0:
             return ""

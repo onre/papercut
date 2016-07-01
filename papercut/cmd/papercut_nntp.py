@@ -855,12 +855,14 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             420 No current article selected
             430 no such article
         """
+        backend = None
         if (len(self.tokens) < 2) or (len(self.tokens) > 3):
             self.send_response(ERR_CMDSYNTAXERROR)
             return
         if self.selected_group == 'ggg':
             self.send_response(ERR_NOGROUPSELECTED)
             return
+        backend = self._backend_from_group(self.selected_group)
         if (self.tokens[1].upper() != 'SUBJECT') and (self.tokens[1].upper() != 'FROM'):
             self.send_response(ERR_CMDSYNTAXERROR)
             return
@@ -872,8 +874,12 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         else:
             # check the XHDR style now
             if self.tokens[2].find('@') != -1:
-                self.tokens[2] = self.get_number_from_msg_id(self.tokens[2])
-                info = backend.get_XHDR(self.selected_group, self.tokens[1], 'unique', (self.tokens[2]))
+                for b in backends.values():
+                  self.tokens[2] = self.get_number_from_msg_id(self.tokens[2], b)
+                  info = b.get_XHDR(self.selected_group, self.tokens[1], 'unique', (self.tokens[2]))
+                  if info != '':
+                    backend = b
+                    break
             else:
                 ranges = self.tokens[2].split('-')
                 if ranges[1] == '':
