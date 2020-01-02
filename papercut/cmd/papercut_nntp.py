@@ -9,7 +9,7 @@ import os
 import signal
 import time
 import re
-import rfc822
+import email.message as rfc822
 import traceback
 import io
 

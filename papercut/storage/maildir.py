@@ -20,7 +20,7 @@ from fnmatch import fnmatch
 import glob
 import os
 import mailbox
-import rfc822
+import email.message as rfc822
 import socket
 import string
 import time

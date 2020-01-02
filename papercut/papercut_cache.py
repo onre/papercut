@@ -1,7 +1,7 @@
 # Copyright (c) 2002 Joao Prado Maia. See the LICENSE file for more information.
 
 import binascii
-import md5
+from hashlib import md5
 import time
 import os
 import pickle
