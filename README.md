@@ -1,3 +1,8 @@
+# onre's Papercut fork
+
+This should work with Python 3.x now. I removed the MySQL module from
+dependencies as the backends I plan to use don't need it.
+
 # Papercut NNTP Server
 
 Papercut is a BSD licensed NNTP server written in 100% pure Python. It is
