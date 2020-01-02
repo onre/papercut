@@ -58,7 +58,7 @@ setup(
     keywords='nntp usenet gateway mail2news email maildir mbox',
     packages=find_packages(),
 
-    install_requires=['mysql-python', # for various web forum storage plugins and MySQL authentication
+    install_requires=[# 'mysql-python', # for various web forum storage plugins and MySQL authentication
                       'pyaml',        # for parsing config files
                       'm9dicts'       # for deep merging configuration from multiple sources
                      ],
