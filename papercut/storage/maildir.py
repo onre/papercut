@@ -24,7 +24,7 @@ import rfc822
 import socket
 import string
 import time
-import StringIO
+import io
 
 from stat import ST_MTIME
 
@@ -59,8 +59,8 @@ def new_to_cur(groupdir):
         except OSError:
           # This may have been moved already, with dircache not knowing about
           # it, yet.
-          print("DEBUG: ofp = %s: %s" % (ofp, os.path.exists(ofp)) )
-          print("DEBUG: nfp = %s: %s" % (nfp, os.path.exists(nfp)) )
+          print(("DEBUG: ofp = %s: %s" % (ofp, os.path.exists(ofp)) ))
+          print(("DEBUG: nfp = %s: %s" % (nfp, os.path.exists(nfp)) ))
           pass
 
 
@@ -144,7 +144,7 @@ class HeaderCache:
     new_to_cur(groupdir)
     curdir = os.path.join(groupdir, 'cur')
 
-    if not self.dircache.has_key(group):
+    if group not in self.dircache:
       self.dircache[group] = []
 
     # Keep a copy of old cache for cleanup of stale entries
@@ -159,7 +159,7 @@ class HeaderCache:
       # Create new entries
       try:
         filename = os.path.join(curdir, self.dircache[group][i])
-        if not self.cache.has_key(filename):
+        if filename not in self.cache:
           self.refresh_article(filename, group, curdir)
       except IndexError:
         # Either or self.dircache may be shorter, causing IndexError. We can
@@ -203,7 +203,7 @@ class HeaderCache:
       m = rfc822.Message(f)
 
       # Create in-memory data structure with readline() support to minimize I/O
-      headers = StringIO.StringIO(''.join(m.headers))
+      headers = io.StringIO(''.join(m.headers))
       m = rfc822.Message(headers)
 
       f.close()
@@ -657,7 +657,7 @@ class Papercut_Storage:
     def get_LISTGROUP(self, group_name):
         group = self._groupname2group(group_name)
         self.cache.refresh_dircache(group)
-        ids = range(1, len(self.cache.dircache[group]) + 1)
+        ids = list(range(1, len(self.cache.dircache[group]) + 1))
         ids = [str(id) for id in ids]
         return "\r\n".join(ids)
 
@@ -675,7 +675,7 @@ class Papercut_Storage:
                 range_end = int(ranges[1])
             else:
                 range_end = self.get_group_article_count(group)
-            ids = range(int(ranges[0]), range_end + 1)
+            ids = list(range(int(ranges[0]), range_end + 1))
         else:
             ids = [ranges]
 

@@ -4,7 +4,7 @@ import binascii
 import md5
 import time
 import os
-import cPickle
+import pickle
 import papercut.portable_locker
 import papercut.settings
 
@@ -49,8 +49,8 @@ class CallableWrapper:
         inf = open(filename, 'rb')
         # get a lock on the file
         portable_locker.lock(inf, portable_locker.LOCK_SH)
-        expire = cPickle.load(inf)
-        result = cPickle.load(inf)
+        expire = pickle.load(inf)
+        result = pickle.load(inf)
         # release the lock
         portable_locker.unlock(inf)
         inf.close()
@@ -62,8 +62,8 @@ class CallableWrapper:
         outf = open(filename, 'w')
         # file write lock
         portable_locker.lock(outf, portable_locker.LOCK_EX)
-        cPickle.dump(time.time(), outf)
-        cPickle.dump(result, outf)
+        pickle.dump(time.time(), outf)
+        pickle.dump(result, outf)
         # release the lock
         portable_locker.unlock(outf)
         outf.close()

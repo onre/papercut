@@ -1,7 +1,7 @@
 import nntplib
 import re
 import time
-import StringIO
+import io
 
 # We need setting.forward_host, which is the nntp server we forward to
 import papercut.settings
@@ -16,7 +16,7 @@ settings = papercut.settings.CONF()
 
 def log(s):
     # For debugging, replace with "pass" if this gets stable one day
-    print s
+    print(s)
 
 class Papercut_Storage:
     def __init__(self):
@@ -25,7 +25,7 @@ class Papercut_Storage:
     def group_exists(self, group_name):
         try:
             self.nntp.group(group_name)
-        except nntplib.NNTPTemporaryError, reason:
+        except nntplib.NNTPTemporaryError as reason:
             return 0
         return 1
 
@@ -71,7 +71,7 @@ class Papercut_Storage:
         response, lst= self.nntp.list()
         def convert(x):
             return x[0], (int(x[1]), int(x[2]))
-        lst = map(convert, lst)
+        lst = list(map(convert, lst))
         return lst
 
     def get_STAT(self, group_name, id):
@@ -79,7 +79,7 @@ class Papercut_Storage:
         try:
             resp, nr, id = self.nntp.stat(id)
             return nr
-        except nntplib.NNTPTemporaryError, reason:
+        except nntplib.NNTPTemporaryError as reason:
             return None
 
     def get_ARTICLE(self, group_name, id):
@@ -156,7 +156,7 @@ class Papercut_Storage:
         if style == "range":
             range = "-".join(range)
         resp, result = self.nntp.xhdr(header, range) 
-        result = map(lambda x: x[1], result)
+        result = [x[1] for x in result]
         return "\r\n".join(result)
 
     def do_POST(self, group_name, lines, ip_address, username=''):
@@ -172,6 +172,6 @@ class Papercut_Storage:
             counter +=1
         lines = "\n".join(lns)
         # we need to send an actual file
-        f = StringIO.StringIO(lines)
+        f = io.StringIO(lines)
         result = self.nntp.post(f)
         return result

@@ -1,7 +1,7 @@
 # Copyright (c) 2002 Joao Prado Maia. See the LICENSE file for more information.
 # Copyright (c) 2016 Johannes Grassler. See the LICENSE file for more information.
 
-from __future__ import print_function
+
 
 import argparse
 import m9dicts
@@ -215,7 +215,7 @@ class Config:
       if isinstance(conf[key], dict):
         conf[key] = self.path_keys(conf[key])
         continue
-      if PATH_KEYS.has_key(key):
+      if key in PATH_KEYS:
         conf[key] = os.path.expandvars(conf[key])
         conf[key] = os.path.expanduser(conf[key])
     return conf
@@ -234,7 +234,7 @@ class Config:
         for h in self.config.hierarchies:
           if h.startswith('papercut'):
             bad_hierarchies.append(h)
-          if self.config.hierarchies[h].has_key('backend'):
+          if 'backend' in self.config.hierarchies[h]:
             backend_found = True
       except TypeError:
         pass

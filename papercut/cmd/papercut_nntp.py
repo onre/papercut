@@ -3,7 +3,7 @@
 # Copyright (c) 2002 Joao Prado Maia. See the LICENSE file for more information.
 # Copyright (c) 2016 Johannes Grassler. See the LICENSE file for more information.
 
-import SocketServer
+import socketserver
 import sys
 import os
 import signal
@@ -11,7 +11,7 @@ import time
 import re
 import rfc822
 import traceback
-import StringIO
+import io
 
 # papercut based modules
 import papercut.settings
@@ -85,12 +85,12 @@ contenttype_regexp = re.compile("^Content-Type:(.*);", re.M)
 authinfo_regexp = re.compile("AUTHINFO PASS")
 
 if os.name == 'posix':
-    class NNTPServer(SocketServer.ForkingTCPServer):
+    class NNTPServer(socketserver.ForkingTCPServer):
         allow_reuse_address = 1
         if settings.max_connections:
             max_children = settings.max_connections
 else:
-    class NNTPServer(SocketServer.ThreadingTCPServer):
+    class NNTPServer(socketserver.ThreadingTCPServer):
         allow_reuse_address = 1
 
 def list_backends():
@@ -141,7 +141,7 @@ if settings.nntp_auth == 'yes':
     auth = temp.Papercut_Auth()
 
 
-class NNTPRequestHandler(SocketServer.StreamRequestHandler):
+class NNTPRequestHandler(socketserver.StreamRequestHandler):
     # this is the list of supported commands
     commands = ('ARTICLE', 'BODY', 'HEAD',
                 'STAT', 'GROUP', 'LIST', 'POST',
@@ -229,15 +229,15 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
                                 self.do_POST()
                             except:
                                 # use a temporary file handle object to store the traceback information
-                                temp = StringIO.StringIO()
+                                temp = io.StringIO()
                                 traceback.print_exc(file=temp)
                                 temp_msg = temp.getvalue()
                                 # save on the log file
                                 settings.logEvent('Error - Posting failed for user from \'%s\' (exception triggered)' % self.client_address[0])
                                 settings.logEvent(temp_msg)
                                 if __DEBUG__:
-                                    print 'Error - Posting failed for user from \'%s\' (exception triggered; details below)' % self.client_address[0]
-                                    print temp_msg
+                                    print('Error - Posting failed for user from \'%s\' (exception triggered; details below)' % self.client_address[0])
+                                    print(temp_msg)
                                 self.send_response(ERR_POSTINGFAILED)
                             continue
                         self.article_lines.append(line)
@@ -263,7 +263,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         else:
             ts = self.get_timestamp(self.tokens[1], self.tokens[2], 'no')
         allgroups = None
-        for backend in backends.values():
+        for backend in list(backends.values()):
           groups = backend.get_NEWGROUPS(ts)
           if groups is not None:
             allgroups += groups
@@ -328,7 +328,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
       Checks whether a group exists for a backend and returns that backend
       '''
 
-      for backend in backends.values():
+      for backend in list(backends.values()):
         if backend.group_exists(group):
           return backend
       return None
@@ -343,7 +343,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         if group_backend:
           news = group_backend.get_NEWNEWS(timestamp, param)
         else:
-          for backend in backends.values():
+          for backend in list(backends.values()):
             news += backend.get_NEWNEWS(timestamp, param)
         return news
 
@@ -416,7 +416,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             self.send_response(ERR_NOTPERFORMED)
             return
         result = ''
-        for backend in backends.values():
+        for backend in list(backends.values()):
           result += backend.get_LIST(self.auth_username)
         self.send_response("%s\r\n%s\r\n." % (STATUS_LIST, result))
 
@@ -443,7 +443,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             return
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
-            for b in backends.values():
+            for b in list(backends.values()):
                 self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 result = b.get_STAT(self.selected_group, self.tokens[1])
                 if result:
@@ -496,7 +496,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             return
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
-            for b in backends.values():
+            for b in list(backends.values()):
                 self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 result = b.get_ARTICLE(self.selected_group, self.tokens[1])
                 if result:
@@ -590,7 +590,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             return
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
-            for b in backends.values():
+            for b in list(backends.values()):
                 self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 body = b.get_BODY(self.selected_group, self.tokens[1])
                 if body:
@@ -633,7 +633,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             return
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
-            for b in backends.values():
+            for b in list(backends.values()):
                 self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 body = b.get_BODY(self.selected_group, self.tokens[1])
                 if body:
@@ -831,10 +831,10 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             return
         info = ''
         if len(self.tokens) == 3:
-            for backend in backends.values():
+            for backend in list(backends.values()):
               info += backend.get_XGTITLE(self.tokens[2])
         else:
-            for backend in backends.values():
+            for backend in list(backends.values()):
               info += backend.get_XGTITLE()
         self.send_response("%s\r\n%s\r\n." % (STATUS_LISTNEWSGROUPS, info))
 
@@ -874,7 +874,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         else:
             # check the XHDR style now
             if self.tokens[2].find('@') != -1:
-                for b in backends.values():
+                for b in list(backends.values()):
                   self.tokens[2] = self.get_number_from_msg_id(self.tokens[2], b)
                   info = b.get_XHDR(self.selected_group, self.tokens[1], 'unique', (self.tokens[2]))
                   if info != '':
@@ -973,7 +973,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
             440 posting not allowed
             441 posting failed
         """
-        msg = rfc822.Message(StringIO.StringIO(''.join(self.article_lines)))
+        msg = rfc822.Message(io.StringIO(''.join(self.article_lines)))
         group_name = msg.getheader('Newsgroups')
 
         # check the 'Newsgroups' header
@@ -1057,7 +1057,7 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
 
     def send_response(self, message):
         if __DEBUG__:
-            print "server>", message
+            print("server>", message)
         self.wfile.write(message + "\r\n")
         self.wfile.flush()
 
@@ -1074,22 +1074,22 @@ class NNTPRequestHandler(SocketServer.StreamRequestHandler):
         self.wfile.close()
         self.rfile.close()
         if __DEBUG__:
-            print 'Closing the request'
+            print('Closing the request')
 
 
 def main():
     # set up signal handler
     def sighandler(signum, frame):
-        if __DEBUG__: print "\nShutting down papercut..."
+        if __DEBUG__: print("\nShutting down papercut...")
         server.socket.close()
         time.sleep(1)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, sighandler)
     if settings.storage_backend:
-      print 'Papercut %s (global storage module %s) - starting up' % (__VERSION__, settings.storage_backend)
+      print('Papercut %s (global storage module %s) - starting up' % (__VERSION__, settings.storage_backend))
       server = NNTPServer((settings.nntp_hostname, settings.nntp_port), NNTPRequestHandler)
     else:
-      print 'Papercut %s (no global storage module) - starting up' % __VERSION__
+      print('Papercut %s (no global storage module) - starting up' % __VERSION__)
       server = NNTPServer((settings.nntp_hostname, settings.nntp_port), NNTPRequestHandler)
     server.serve_forever()

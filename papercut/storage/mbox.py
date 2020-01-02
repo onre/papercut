@@ -86,7 +86,7 @@ class Papercut_Storage:
         # check if the message exists
         mbox = self.get_mailbox(group_name.replace('papercut.mbox.', ''))
         i = 0
-        while mbox.next():
+        while next(mbox):
             if i == int(id):
                 return True
             i = i + 1
@@ -96,7 +96,7 @@ class Papercut_Storage:
         mbox = self.get_mailbox(group_name.replace('papercut.mbox.', ''))
         i = 0
         while 1:
-            msg = mbox.next()
+            msg = next(mbox)
             if msg is None:
                 return None
             if i == int(id):
@@ -110,7 +110,7 @@ class Papercut_Storage:
         else:
             i = 0
             while 1:
-                msg = mbox.next()
+                msg = next(mbox)
                 if msg is None:
                     return None
                 if (i+1) == current_id:
@@ -119,10 +119,10 @@ class Papercut_Storage:
 
     def get_NEXT(self, group_name, current_id):
         mbox = self.get_mailbox(group_name.replace('papercut.mbox.', ''))
-        print repr(current_id)
+        print(repr(current_id))
         i = 0
         while 1:
-            msg = mbox.next()
+            msg = next(mbox)
             if msg is None:
                 return None
             if i > current_id:
@@ -133,7 +133,7 @@ class Papercut_Storage:
         mbox = self.get_mailbox(group_name.replace('papercut.mbox.', ''))
         i = 0
         while 1:
-            msg = mbox.next()
+            msg = next(mbox)
             if msg is None:
                 return None
             if i == int(id):
@@ -162,11 +162,11 @@ class Papercut_Storage:
     def get_XOVER(self, group_name, start_id, end_id='ggg'):
         mbox = self.get_mailbox(group_name.replace('papercut.mbox.', ''))
         # don't count the first message
-        mbox.next()
+        next(mbox)
         i = 1
         overviews = []
         while 1:
-            msg = mbox.next()
+            msg = next(mbox)
             if msg is None:
                 break
             author = msg.get('from')
@@ -190,11 +190,11 @@ class Papercut_Storage:
     def get_LISTGROUP(self, group_name):
         mbox = self.get_mailbox(group_name.replace('papercut.mbox.', ''))
         # don't count the first message
-        mbox.next()
+        next(mbox)
         i = 0
         ids = []
         while 1:
-            msg = mbox.next()
+            msg = next(mbox)
             if msg is None:
                 break
             i = i + 1

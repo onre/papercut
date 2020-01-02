@@ -4,7 +4,7 @@ import time
 from mimify import mime_encode_header, mime_decode_header
 import re
 import md5
-import mime
+from . import mime
 
 import papercut.storage.mime as mime
 import papercut.settings
