@@ -189,7 +189,7 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
             if os.name == 'posix':
                 signal.alarm(0)
             if __DEBUG__:
-                print "client>", repr(self.inputline)
+                print("client>", repr(self.inputline))
             # Strip spaces only if NOT receiving article
             if not self.sending_article:
                 line = self.inputline.strip()
