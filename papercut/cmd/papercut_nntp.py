@@ -22,9 +22,9 @@ settings = papercut.settings.CONF()
 
 # set this to 0 (zero) for real world use
 __DEBUG__ = 0
+__CLIENTDEBUG__ = 1
 # how many seconds to wait for data from the clients (draft 20 of the new NNTP protocol says at least 3 minutes)
 __TIMEOUT__ = 180
-
 
 # some constants to hold the possible responses
 ERR_NOTCAPABLE = '500 command not recognized'
@@ -102,7 +102,7 @@ def list_backends():
   backend_map = {}
 
   if settings.storage_backend:
-    backend_map['papercut'] = settings.storage_backend
+    backend_map['sgug'] = settings.storage_backend
 
   if isinstance(settings.hierarchies, dict):
     for h in settings.hierarchies:
@@ -123,7 +123,7 @@ for h in backends:
   temp = __import__('papercut.storage.%s' % (backends[h]), globals(), locals(), ['Papercut_Storage'])
   backend=None
   # papercut. is a reserved hierarchy for global backends
-  if h == 'papercut':
+  if h == 'sgug':
     # Cache only works for parameterless Papercut_Storage constructors so
     # let's restrict it to the global backend for now.
     if settings.nntp_cache == 'yes':
@@ -188,13 +188,13 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
                 continue
             if os.name == 'posix':
                 signal.alarm(0)
-            if __DEBUG__:
+            if __CLIENTDEBUG__:
                 print("client>", repr(self.inputline))
             # Strip spaces only if NOT receiving article
             if not self.sending_article:
-                line = self.inputline.strip()
+                line = self.inputline.strip().decode('latin-1')
             else:
-                line = self.inputline
+                line = self.inputline.decode('latin-1')
             # somehow outlook express sends a lot of newlines (so we need to kill those users when this happens)
             if (not self.sending_article) and (line == ''):
                 self.broken_oe_checker += 1
@@ -497,11 +497,10 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
             for b in list(backends.values()):
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 result = b.get_ARTICLE(self.selected_group, self.tokens[1])
                 if result:
                     backend = b
-                    article_info = b.get_article_number(self.tokens[1])
+                    article_info = (0, self.tokens[1])
                     break
         else:
             # Article Number specified or using article number from article
@@ -517,7 +516,10 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
             self.send_response(ERR_NOSUCHARTICLENUM)
 
         else:
-            response = STATUS_ARTICLE % (article_info[0], backend.get_message_id(article_info[1], article_info[0]))
+            if self.tokens[1][0] == '<':
+                response = STATUS_ARTICLE % (0, self.tokens[1])
+            else:
+                response = STATUS_ARTICLE % (article_info[0], backend.get_message_id(article_info[1], article_info[0]))
             self.send_response("%s\r\n%s\r\n\r\n%s\r\n." % (response, result[0], result[1]))
 
 
@@ -591,11 +593,10 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
             for b in list(backends.values()):
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
                 body = b.get_BODY(self.selected_group, self.tokens[1])
                 if body:
                     backend = b
-                    article_info = b.get_article_number(self.tokens[1])
+                    article_info = (0, self.tokens[1])
                     break
         else:
             # Article Number specified or using article number from article
@@ -609,9 +610,11 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
 
         if body == None:
             self.send_response(ERR_NOSUCHARTICLENUM)
-
         else:
-            self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[0], backend.get_message_id(article_info[1], article_info[0])), body))
+            if self.tokens[1][0] == '<':
+                self.send_response("%s\r\n%s\r\n." % (STATUS_HEAD % ('0', self.tokens[1]), body))
+            else:
+                self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[1], backend.get_message_id(article_info[1], article_info[0])), body))
 
 
     def do_HEAD(self):
@@ -625,7 +628,7 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         backend = None
         article_info = [] # Holds group/article ID of article
 
-        if self.selected_group == 'ggg':
+        if self.selected_group == 'ggg' and self.tokens[1].find('<') == -1:
             self.send_response(ERR_NOGROUPSELECTED)
             return
         if ((len(self.tokens) == 1) and (self.selected_article == 'ggg')):
@@ -634,11 +637,11 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         if len(self.tokens) == 2 and self.tokens[1].find('<') != -1:
             # Message ID specified
             for b in list(backends.values()):
-                self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
-                body = b.get_BODY(self.selected_group, self.tokens[1])
+                # self.tokens[1] = self.get_number_from_msg_id(self.tokens[1], b)
+                body = b.get_HEAD(self.selected_group, self.tokens[1])
                 if body:
                     backend = b
-                    article_info = b.get_article_number(self.tokens[1])
+                    article_info = (0, self.tokens[1])
                     break
         else:
             # Article Number specified or using article number from article
@@ -648,13 +651,16 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
                 self.selected_article = self.tokens[1]
             backend = self._backend_from_group(self.selected_group)
             article_info = [self.selected_group, self.selected_article]
-            body = backend.get_BODY(self.selected_group, self.selected_article)
+            body = backend.get_HEAD(self.selected_group, self.selected_article)
 
         if body == None:
             self.send_response(ERR_NOSUCHARTICLENUM)
-
         else:
-            self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[0], backend.get_message_id(article_info[1], article_info[0])), body))
+            # self.send_response("%s\r\n%s\r\n." % (STATUS_BODY % (article_info[0], backend.get_message_id(article_info[1], article_info[0])), body))
+            if self.tokens[1][0] == '<':
+                self.send_response("%s\r\n%s\r\n." % (STATUS_HEAD % ('0', self.tokens[1]), body))
+            else: 
+                self.send_response("%s\r\n%s\r\n." % (STATUS_HEAD % (article_info[1], backend.get_message_id(article_info[1], article_info[0])), body))
 
 
     def do_OVER(self):
@@ -1058,7 +1064,7 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
     def send_response(self, message):
         if __DEBUG__:
             print("server>", message)
-        self.wfile.write(message + "\r\n")
+        self.wfile.write(bytes(message + "\r\n", 'latin-1', 'replace'))
         self.wfile.flush()
 
     def finish(self):
