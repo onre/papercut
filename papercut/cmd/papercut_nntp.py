@@ -84,7 +84,7 @@ overview_headers = ('Subject', 'From', 'Date', 'Message-ID', 'References', 'Byte
 contenttype_regexp = re.compile("^Content-Type:(.*);", re.M)
 authinfo_regexp = re.compile("AUTHINFO PASS")
 
-if os.name == 'posix':
+if os.name == 'posix' and 0:
     class NNTPServer(socketserver.ForkingTCPServer):
         allow_reuse_address = 1
         if settings.max_connections:
@@ -179,17 +179,17 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         while not self.terminated:
             if self.sending_article == 0:
                 self.article_lines = []
-            if os.name == 'posix':
+            if os.name == 'posix' and 0:
                 signal.signal(signal.SIGALRM, self.handle_timeout)
                 signal.alarm(__TIMEOUT__)
             try:
                 self.inputline = self.rfile.readline()
             except IOError:
                 continue
-            if os.name == 'posix':
+            if os.name == 'posix' and 0:
                 signal.alarm(0)
             if __CLIENTDEBUG__:
-                print("client>", repr(self.inputline))
+                print("%s > %s" % (self.client_address[0], repr(self.inputline)))
             # Strip spaces only if NOT receiving article
             if not self.sending_article:
                 line = self.inputline.strip().decode('latin-1')
