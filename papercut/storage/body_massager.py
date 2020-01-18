@@ -1,6 +1,7 @@
 import bbcode
 import re
 import pprint
+import textwrap
 
 pp = pprint.PrettyPrinter(indent=2)
 

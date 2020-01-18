@@ -61,7 +61,7 @@ STATUS_READYOKPOST = '200 %s Papercut %s server ready (posting allowed)'
 STATUS_CLOSING = '205 closing connection - goodbye!'
 STATUS_XOVER = '224 Overview information follows'
 STATUS_XPAT = '221 Header follows'
-STATUS_LISTGROUP = '211 %s %s %s %s Article numbers follow (multiline)'
+STATUS_LISTGROUP = '211 %s %s %s %s'
 STATUS_XGTITLE = '282 list of groups and descriptions follows'
 STATUS_LISTNEWSGROUPS = '215 information follows'
 STATUS_XHDR = '221 Header follows'
@@ -77,7 +77,7 @@ STATUS_AUTH_CONTINUE = '381 More authentication information required'
 STATUS_SERVER_VERSION = '200 Papercut %s' % (__VERSION__)
 
 # the currently supported overview headers
-overview_headers = ('Subject', 'From', 'Date', 'Message-ID', 'References', 'Bytes', 'Lines', 'Xref')
+overview_headers = ('Subject:', 'From:', 'Date:', 'Message-ID:', 'References:', 'Bytes:', 'Lines:', 'Xref:full')
 
 # we don't need to create the regular expression objects for every request, 
 # so let's create them just once and re-use as needed
@@ -149,8 +149,10 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
                 'NEWNEWS', 'NEXT', 'QUIT',
                 'MODE', 'XOVER', 'XPAT',
                 'LISTGROUP', 'XGTITLE', 'XHDR',
+                'XGTITLE', 'XHDR',
                 'SLAVE', 'DATE', 'IHAVE',
                 'OVER', 'HDR', 'AUTHINFO',
+                'CAPABILITIES',
                 'XROVER', 'XVERSION')
     # this is the list of list of extensions supported that are obviously not in the official NNTP document
     extensions = ('XOVER', 'XPAT', 'LISTGROUP',
@@ -247,6 +249,16 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
                         else:
                             self.send_response(ERR_NOTCAPABLE)
         settings.logEvent('Connection closed (IP Address: %s)' % (self.client_address[0]))
+
+    def do_CAPABILITIES(self):
+        msg = """101 Capability list:
+VERSION 2
+IMPLEMENTATION SGUG-PAPERCUT
+LIST ACTIVE NEWSGROUPS OVERVIEW.FMT SUBSCRIPTIONS
+OVER
+READER
+."""
+        self.send_response(msg)
 
     def do_NEWGROUPS(self):
         """
@@ -400,7 +412,7 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
             503 program error, function not performed
         """
         if (len(self.tokens) == 2) and (self.tokens[1].upper() == 'OVERVIEW.FMT'):
-            self.send_response("%s\r\n%s:\r\n." % (STATUS_OVERVIEWFMT, ":\r\n".join(overview_headers)))
+            self.send_response("%s\r\n%s:\r\n." % (STATUS_OVERVIEWFMT, "\r\n".join(overview_headers)))
             return
         elif (len(self.tokens) == 2) and (self.tokens[1].upper() == 'EXTENSIONS'):
             self.send_response("%s\r\n%s\r\n." % (STATUS_EXTENSIONS, "\r\n".join(self.extensions)))
@@ -412,12 +424,16 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         elif (len(self.tokens) > 1) and (self.tokens[1].upper() == 'NEWSGROUPS'):
             self.do_LIST_NEWSGROUPS()
             return
+        elif (len(self.tokens) > 1) and (self.tokens[1].upper() == 'SUBSCRIPTIONS'):
+            self.do_LIST_NEWSGROUPS()
+            return
         elif len(self.tokens) == 2:
             self.send_response(ERR_NOTPERFORMED)
             return
         result = ''
         for backend in list(backends.values()):
-          result += backend.get_LIST(self.auth_username)
+            print(backend)
+            result += backend.get_LIST(self.auth_username)
         self.send_response("%s\r\n%s\r\n." % (STATUS_LIST, result))
 
     def do_STAT(self):
@@ -686,9 +702,9 @@ class NNTPRequestHandler(socketserver.StreamRequestHandler):
         if len(self.tokens) == 1:
             # only show the information for the current selected article
             if self.selected_article == 'ggg':
-                self.send_response(ERR_NOARTICLESELECTED)
-                return
-            overviews = backend.get_XOVER(self.selected_group, self.selected_article, self.selected_article)
+                overviews = backend.get_XOVER(self.selected_group, 1, 1)
+            else:
+                overviews = backend.get_XOVER(self.selected_group, self.selected_article, self.selected_article)
         else:
             if self.tokens[1].find('-') == -1:
                 overviews = backend.get_XOVER(self.selected_group, self.tokens[1], self.tokens[1])
